@@ -39,6 +39,14 @@ Start with [`10-recommendation.md`](10-recommendation.md). Its TL;DR gives the p
 
 All reviews: [`reviews/`](reviews/).
 
+## Owner's decisions (2026-11-24)
+
+The owner answered `10-recommendation.md` §4 on 2026-11-24. The details are in §4.0 of that file.
+
+- **D1** Electron · **D2** Apache-2.0, public repo · **D3** SignPath · **D4** deferred: no new Apple account for now, an existing organisation account only for private test builds · **D5** answer/resume in v1, most likely, gated on H1/H1′ · **D6** (a) · **D7** desktop shell only · **D8** AppImage + deb with the signature hook · **D9** leaning towards each person's own subscription, with API key or WIF only for remote runs several people start, pending Anthropic's answer · **D10** no tray or notifications · **D11** React.
+
+Still open: running the validation spike (§5), sending the email to Anthropic (09), and the publish flow once the harness is installed.
+
 ## TL;DR of the recommendation
 
 - **Framework: Electron** (TS web UI, TS main process), decided now on the evidence with security first, with **Tauri 2** as the close alternative. A 7–8 O-d validation spike checks the pick against measured flip conditions.

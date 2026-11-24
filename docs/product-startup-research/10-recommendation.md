@@ -19,7 +19,7 @@ The Issue's "Decisions taken" are treated as discussion points, not constraints.
 - **Security bar for v1 (§6):** a sanitiser pipeline with Trusted Types and a strict CSP, intent-only IPC, one argv builder, an OS-native confirmation modal for every start, answer and resume, a repo-trust gate, display-time secret masking, signed updates with key custody, and three CI security suites (for the desktop shell: an XSS corpus, an argv fuzz and a hostile-repo fixture). Estimated at about 5.5 O-d for Electron (6.0 for Tauri) (08 §4.2). **Harness findings H1 and H1′ (08 §5.2) block the answer and resume features** until they are fixed, or until 08 Risk 1's runtime measurement shows every write refused (they then drop to Info).
 - **Anthropic terms: the design is within them** (09). The rule is "spawn the user's own unmodified `claude`; never touch credentials, never bundle Claude Code, never put Claude or Anthropic in a product name." Three narrow questions remain (09 "Open questions"). In each, the worst case is a change of credential type or plan, not a ban. Send the drafted email (09 "Draft email to Anthropic").
 - **Money:** about US$99/yr if the app is open source (Apple Developer Program, with free Windows signing via SignPath and free public CI). About US$220–600/yr otherwise (up to ≈ 900 with Sentry Team), because a closed app needs Artifact Signing (≈ 120, if eligible) or an OV certificate (≈ 300–500) (§7). **Owner time:** about 7–8 O-d for the spike, then about 32.5 O-d for v1 on Electron (23–42 at ±30%), including security. About 4 O-d of the spike carries into v1 [inferred], so spike plus v1 is ≈ 36 O-d (§7). Harness-side contract work comes on top and is sized in the harness repo.
-- **Owner decisions needed now (§4):**
+- **Owner decisions needed now (§4):** *answered on 2026-11-24, see §4.0; the list below is kept as originally written.*
   - the framework (D1: Electron, which commits you to its 14-day security-release cadence; Tauri only if you cannot commit to that);
   - the open-source licence;
   - the Windows signing route (which depends on your country and legal entity);
@@ -217,6 +217,27 @@ Within the terms, with three narrow open questions (09 grades in brackets):
 TypeScript is the strongest single bet. Rust is the best second language for growth, and Go the best for job count. 03 §6 rates Electron and Tauri equal (●●●); Tauri would add some Rust if the app-side layer were written in it. The owner's interest in career languages is a mild wish, so it does not affect the framework choice (§1.2). Kotlin's value is moderate (Android and JVM back-end; desktop Compose is niche). Swift, Dart and WinUI/GTK skills carry little transferable value. Python's value comes from the language, not from desktop GUIs. → 03 §5.
 
 ### 4. Decisions the owner must make
+
+#### 4.0 Owner's decisions (2026-11-24)
+
+The owner answered the table below on 2026-11-24. Like the rest of Issue #1, these are working decisions: new evidence can reopen any of them. The table after this subsection is kept as originally written, with the options and the reasoning.
+
+| # | Decision | Notes |
+|---|---|---|
+| D1 | **Electron**, TS web UI and TS main process | Commits the project to shipping each Electron security release within 14 days. The spike (§5) still validates it against the flip conditions. |
+| D2 | **Apache-2.0, public repo** on the owner's personal GitHub account | The repo went public on 2026-11-24, with `LICENSE` and `NOTICE` at the root. A licence that stops others selling Studio itself, such as PolyForm Shield or FSL, was considered and rejected: it isn't OSI open source and would lose free SignPath signing and the Sentry open-source sponsorship. |
+| D3 | **SignPath Foundation** (follows from D2) | Apply before the first Windows release. |
+| D4 | **Deferred.** No new Apple Developer account for now | v1 work goes ahead without one. Private pre-release macOS builds may be signed with Developer ID and notarized under an existing organisation account the owner holds, signed on the owner's machine and never in this repo's CI. TestFlight isn't used, because it needs a sandboxed Mac App Store build. Before the first public release, move to the publishing identity (a personal individual account), starting enrolment a few weeks ahead. Installs signed by the interim account need one manual reinstall. |
+| D5 | **Yes, most likely** | Harness H1/H1′ are fixed in parallel and must land, or the 08 Risk 1 measurement must show every write refused, before answer/resume ships. |
+| D6 | **Yes, option (a)** | The read side plus `runs pause`, `runs drop` and a global-stop verb in the harness phase Studio v1 depends on. |
+| D7 | **Desktop shell only in v1** | |
+| D8 | **AppImage + deb**, with the detached-signature update hook | |
+| D9 | **Leaning:** each person's own subscription for local runs, on any plan including a Team seat. A repo's subscription token for remote runs only when its owner alone starts them, which the harness enforces with `DEVSCENE_RUN_ACTORS`. A Console API key or workload identity federation only when several people start remote runs. | This follows DevScene's `docs/team-accounts-research.md` (Summary, Option C, §6) and narrows this file's "API key for team repos". It is final once Anthropic has answered the 09 email. |
+| D10 | **No tray or OS notifications in v1** | |
+| D11 | **React** | Chosen on the owner's React experience. Both options were viable and no comparison was researched. |
+
+**Repo setup:** the `dev` and `main` branch model and the `dev-protection` and `main-protection` rulesets are copied from the DevScene repo. `main` is the default branch. The publish flow, which regenerates `main` from `dev` without the harness adoption files, comes after the harness is installed (Issue #1 items 2–3).
+
 
 | # | Question | Options and consequences | Recommendation |
 |---|---|---|---|
