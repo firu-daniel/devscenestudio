@@ -36,6 +36,7 @@ Start with [`10-recommendation.md`](10-recommendation.md). Its TL;DR gives the p
 | [`08-security.md`](08-security.md) | Threat models per delivery mode, cross-cutting controls, effort per mode, CI security suites, the v1 minimum bar, and harness-side findings (H1/H1′ High). | PASS WITH FIXES · [review](reviews/08-security.md) |
 | [`09-anthropic-terms-licensing.md`](09-anthropic-terms-licensing.md) | Anthropic terms for headless `claude -p`, Studio's spawn-only design, GitHub Actions credentials, naming, redistribution, monetisation, Apache-2.0 compatibility, and a draft email to Anthropic. | PASS WITH FIXES · [review](reviews/09-anthropic-terms-licensing.md) |
 | [`10-recommendation.md`](10-recommendation.md) | **The decision document:** the recommendation, the owner's questions answered, resolved disagreements, owner decisions, the validation spike, the v1 security bar, costs, harness follow-ups, Issue #1 updates, and what remains unverified. | PASS WITH FIXES · [review](reviews/10-recommendation.md) |
+| [`11-day0-signing.md`](11-day0-signing.md) | Spike Day 0, step by step: notarizing a hello-world Electron app (certificate, credentials, Hardened Runtime, entitlements, pass checks), and why SignPath Windows signing comes after the first release. | Draft, not reviewed |
 
 All reviews: [`reviews/`](reviews/).
 
@@ -43,7 +44,7 @@ All reviews: [`reviews/`](reviews/).
 
 The owner answered `10-recommendation.md` §4 on 2026-11-24. The details are in §4.0 of that file.
 
-- **D1** Electron · **D2** Apache-2.0, public repo · **D3** SignPath · **D4** deferred: no new Apple account for now, an existing organisation account only for private test builds · **D5** answer/resume in v1, most likely, gated on H1/H1′ · **D6** (a) · **D7** desktop shell only · **D8** AppImage + deb with the signature hook · **D9** leaning towards each person's own subscription, with API key or WIF only for remote runs several people start, pending Anthropic's answer · **D10** no tray or notifications · **D11** React.
+- **D1** Electron · **D2** Apache-2.0, public repo · **D3** SignPath, after the first release (11 §3) · **D4** deferred: no new Apple account for now, an existing organisation account only for private test builds · **D5** answer/resume in v1, most likely, gated on H1/H1′ · **D6** (a) · **D7** desktop shell only · **D8** AppImage + deb with the signature hook · **D9** leaning towards each person's own subscription, with API key or WIF only for remote runs several people start, pending Anthropic's answer · **D10** no tray or notifications · **D11** React.
 
 Still open: running the validation spike (§5), sending the email to Anthropic (09), and the publish flow once the harness is installed.
 
