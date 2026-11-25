@@ -255,7 +255,7 @@ Can slip past the spike without touching the go/no-go: contract run (b), the `_e
 
 Honest delta: **Days 1–2 go from 3 to ≈ 5–5.5 O-d (+2 to +2.5).** The spike moves from 7–8 O-d (10 §5; ≈ 6–7 now that Day 4 has moved to Issue #1 item 4, Issue #4 Setup) to **≈ 8–9.5 O-d**. About 1.5 O-d of the addition is v1 work done earlier: tooling 0.75 + security structure 0.5–1 ≈ 1.5, both inside 10 §7's v1 item 2 and the 5.5 O-d security bar. So spike plus v1 (≈ 36 O-d in 10 §7, unchanged by the Day 4 move because that work moves into v1) grows by ≈ 0.5–1 O-d [inferred]. Deferring Suspended, the ring LRU and backoff to v1 saves ≈ 0.25 O-d on Day 2, which offsets taking 05's full 0.5–1 O-d for security, so Day 2 stays at 2.5–3; the deferred work lands in v1, so the total is unchanged. Every figure is an estimate.
 
-## 5. Proposed edits to the Issues (text only; not applied)
+## 5. Edits to the Issues (applied to Issues #1 and #4 on 2026-11-25)
 
 **Issue #4:**
 - Header: add "Architecture: [`docs/architecture-research/07-recommendation.md`](…) §4".
