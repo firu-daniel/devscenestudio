@@ -26,6 +26,12 @@ provision:
       #!/bin/bash
       set -eux -o pipefail
       export DEBIAN_FRONTEND=noninteractive
+      # The desktop packages make NetworkManager netplan's default renderer without
+      # installing NetworkManager, so on the next netplan run both interfaces end up
+      # unmanaged and lose their addresses (Lima's SSH goes with them). Pin systemd-networkd
+      # in a file that sorts after any default.
+      printf 'network:\n  version: 2\n  renderer: networkd\n' >/etc/netplan/90-lima-networkd.yaml
+      chmod 600 /etc/netplan/90-lima-networkd.yaml
       if ! dpkg -s ubuntu-desktop-minimal >/dev/null 2>&1; then
         apt-get update
         apt-get install -y --no-install-recommends ubuntu-desktop-minimal gnome-terminal xdg-utils
