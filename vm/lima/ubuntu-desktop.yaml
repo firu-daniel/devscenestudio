@@ -47,7 +47,7 @@ provision:
       # No screen lock or blanking: the passwordless account could never unlock it.
       mkdir -p /etc/dconf/profile /etc/dconf/db/local.d
       [ -f /etc/dconf/profile/user ] || printf 'user-db:user\nsystem-db:local\n' >/etc/dconf/profile/user
-      printf '[org/gnome/desktop/screensaver]\nlock-enabled=false\n\n[org/gnome/desktop/session]\nidle-delay=uint32 0\n' \
+      printf '[org/gnome/desktop/screensaver]\nlock-enabled=false\n\n[org/gnome/desktop/session]\nidle-delay=uint32 0\n\n[org/gnome/desktop/lockdown]\ndisable-lock-screen=true\n' \
         >/etc/dconf/db/local.d/00-studio-vm
       dconf update
       systemctl set-default graphical.target
