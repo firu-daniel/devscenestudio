@@ -1,0 +1,68 @@
+# x86_64 Linux packaging tests (Issue #4, "Setup: VMs and runners"; used again on Day 3).
+# The Lima VMs on the owner's Mac are ARM64, while most Linux users are on x86_64, so the
+# AppImage and deb are built, installed and launched here too, headless under Xvfb.
+name: Linux packaging (x86_64)
+
+on:
+  pull_request:
+  push:
+    branches: [dev, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+
+      - name: Build AppImage and deb (x64)
+        run: npm run build && npx electron-builder --linux AppImage deb --x64 --publish never
+
+      - name: List artifacts
+        run: ls -la release/
+
+      - name: Install launch dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends xvfb xdotool imagemagick
+
+      - name: Install the deb
+        run: sudo apt-get install -y ./release/*_amd64.deb
+
+      # A launch passes when the process is still running after 20 s and has mapped a
+      # window titled "DevScene Studio". The Chromium sandbox stays on: if Ubuntu 24.04's
+      # AppArmor user-namespace restriction blocks it, this fails and that is a finding.
+      - name: Launch the deb build
+        run: scripts/ci/smoke-launch.sh deb /opt/DevScene\ Studio/devscene-studio
+
+      - name: Launch the AppImage
+        run: |
+          appimage="$(ls release/*.AppImage)"
+          chmod +x "$appimage"
+          scripts/ci/smoke-launch.sh appimage "$appimage"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-x64
+          path: |
+            release/*.AppImage
+            release/*.deb
+            smoke/
+          retention-days: 7

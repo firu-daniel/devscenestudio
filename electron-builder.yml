@@ -22,3 +22,16 @@ mac:
   # No `identity` here: it comes from CSC_NAME outside the repo, and
   # scripts/require-signing-env.mjs refuses a release build without it.
   notarize: true
+
+linux:
+  # AppImage and deb, for x64 (CI runner) and arm64 (the Lima VMs). Unsigned for now:
+  # update integrity is the Day 3 test (detached-signature verify hook, flip condition 2).
+  target:
+    - target: AppImage
+      arch: [x64, arm64]
+    - target: deb
+      arch: [x64, arm64]
+  category: Development
+  executableName: devscene-studio
+  maintainer: Firu Daniel <firu-daniel@users.noreply.github.com>
+  synopsis: Desktop app for DevScene runs
