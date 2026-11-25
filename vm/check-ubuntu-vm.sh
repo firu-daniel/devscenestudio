@@ -10,7 +10,7 @@ echo "release:  $(. /etc/os-release && echo "$PRETTY_NAME") ($(uname -m))"
 echo "kernel:   $(uname -r)"
 echo "glibc:    $(ldd --version | head -1 | awk '{print $NF}')"
 echo "gnome:    $(gnome-shell --version 2>/dev/null || echo 'not installed')"
-echo "gpu:      $(ls /sys/class/drm 2>/dev/null | tr '\n' ' ') driver=$(basename "$(readlink -f /sys/class/drm/card0/device/driver 2>/dev/null)" 2>/dev/null)"
+echo "gpu:      $(ls /sys/class/drm 2>/dev/null | tr '\n' ' ')module=$(lsmod | awk '$1 == "virtio_gpu" {print $1}')"
 echo "sessions:"
 loginctl list-sessions --no-legend | while read -r id _ user _; do
   printf '  %s user=%s type=%s class=%s\n' "$id" "$user" \
