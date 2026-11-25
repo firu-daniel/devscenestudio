@@ -1,0 +1,24 @@
+appId: io.github.firu-daniel.devscenestudio
+productName: DevScene Studio
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**/*
+  - "!dist/**/*.map"
+  - package.json
+
+mac:
+  category: public.app-category.developer-tools
+  # zip only for now: electron-builder 26 neither signs nor notarizes the DMG
+  # container. Add a signed, notarized DMG before the first public release.
+  target:
+    - target: zip
+      arch: [arm64]
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  # No `identity` here: it comes from CSC_NAME outside the repo, and
+  # scripts/require-signing-env.mjs refuses a release build without it.
+  notarize: true
