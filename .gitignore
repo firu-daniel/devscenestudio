@@ -1,0 +1,14 @@
+node_modules/
+dist/
+release/
+
+# Signing and notarization material never belongs in this repo.
+.env
+.env.*
+*.p8
+*.p12
+*.cer
+*.certSigningRequest
+*.provisionprofile
+
+.DS_Store
