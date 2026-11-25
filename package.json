@@ -14,11 +14,13 @@
     "build": "tsc -p tsconfig.json && node scripts/copy-renderer-assets.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "npm run build && electron .",
-    "dist:mac": "node scripts/require-signing-env.mjs && npm run build && electron-builder --mac --publish never"
+    "dist:mac": "node scripts/require-signing-env.mjs && npm run build && electron-builder --mac --publish never",
+    "dist:linux": "npm run build && electron-builder --linux --publish never"
   },
   "devDependencies": {
     "electron": "45.5.0",
     "electron-builder": "26.18.1",
     "typescript": "6.0.3"
-  }
+  },
+  "homepage": "https://github.com/firu-daniel/devscenestudio"
 }

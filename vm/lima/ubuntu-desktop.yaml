@@ -1,0 +1,71 @@
+# Ubuntu ARM64 desktop VM for the Linux spike tests (Issue #4, "Setup: VMs and runners").
+# Do not use directly: vm/create-ubuntu-vm.sh picks the Ubuntu release and mounts
+# this repository read-only. It does not mount your home directory, so the private
+# signing env file stays out of the guest.
+minimumLimaVersion: 2.0.0
+
+vmType: vz
+cpus: 4
+memory: 6GiB
+# The disk image is sparse: it only takes the space the guest actually writes.
+disk: 30GiB
+
+# Opens the guest screen in a macOS window (Virtualization.framework view).
+video:
+  display: vz
+
+mountType: virtiofs
+# The create script mounts this repository, read-only.
+mounts: []
+
+provision:
+  # GNOME on GDM. GDM picks a Wayland session by default when the GPU driver supports it
+  # (virtio-gpu here); the check script reports which session type is actually running.
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+      export DEBIAN_FRONTEND=noninteractive
+      # The desktop packages make NetworkManager netplan's default renderer without
+      # installing NetworkManager, so on the next netplan run both interfaces end up
+      # unmanaged and lose their addresses (Lima's SSH goes with them). Pin systemd-networkd
+      # in a file that sorts after any default.
+      printf 'network:\n  version: 2\n  renderer: networkd\n' >/etc/netplan/90-lima-networkd.yaml
+      chmod 600 /etc/netplan/90-lima-networkd.yaml
+      if ! dpkg -s ubuntu-desktop-minimal >/dev/null 2>&1; then
+        apt-get update
+        apt-get install -y --no-install-recommends ubuntu-desktop-minimal gnome-terminal xdg-utils
+      fi
+      # Log the Lima user straight into GNOME: the account has no password.
+      mkdir -p /etc/gdm3
+      cat >/etc/gdm3/custom.conf <<EOF
+      [daemon]
+      AutomaticLoginEnable=true
+      AutomaticLogin={{.User}}
+      WaylandEnable=true
+      EOF
+      # No screen lock or blanking: the passwordless account could never unlock it.
+      mkdir -p /etc/dconf/profile /etc/dconf/db/local.d
+      [ -f /etc/dconf/profile/user ] || printf 'user-db:user\nsystem-db:local\n' >/etc/dconf/profile/user
+      printf '[org/gnome/desktop/screensaver]\nlock-enabled=false\n\n[org/gnome/desktop/session]\nidle-delay=uint32 0\n\n[org/gnome/desktop/lockdown]\ndisable-lock-screen=true\n' \
+        >/etc/dconf/db/local.d/00-studio-vm
+      dconf update
+      systemctl set-default graphical.target
+      if ! systemctl is-active --quiet gdm3 && ! systemctl is-active --quiet gdm; then
+        systemctl start gdm3 || systemctl start gdm
+      fi
+
+probes:
+  - description: GNOME desktop installed
+    script: |
+      #!/bin/bash
+      set -eu
+      if ! timeout 30m bash -c 'until dpkg -s ubuntu-desktop-minimal >/dev/null 2>&1; do sleep 10; done'; then
+        echo >&2 "ubuntu-desktop-minimal is not installed yet"
+        exit 1
+      fi
+    hint: See /var/log/cloud-init-output.log in the guest.
+
+message: |
+  GNOME is starting in the VM window. Check the session type with:
+    vm/check-ubuntu-vm.sh {{.Name}}
