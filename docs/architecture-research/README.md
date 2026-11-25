@@ -20,7 +20,7 @@ The synthesis, `07-recommendation.md`, reads all six reviewed files and the revi
 
 ## How to read it
 
-Start with [`07-recommendation.md`](07-recommendation.md). Its TL;DR gives the architecture; §1 answers the owner's six questions; §3 is the reference architecture (folder tree, dependency rules, the `layers[]` JSON, the pattern table and the data flow); §2 lists each disagreement between files and how it was resolved; §4 is the revised Day 1 and Day 2 plan for Issue #4, with effort; §5 proposes edits to Issues #4 and #1; §6 lists harness asks; §7 lists deferred mechanisms with their triggers; §8 lists risks and what remains unverified. Open an area file only when you need the evidence behind a point. The reviews are for checking how a claim was verified or corrected.
+Start with [`07-recommendation.md`](07-recommendation.md). Its TL;DR gives the architecture; §1 answers the owner's six questions; §3 is the reference architecture (folder tree, dependency rules, the `layers[]` JSON, the pattern table and the data flow); §2 lists each disagreement between files and how it was resolved; §4 is the revised Day 1 and Day 2 plan for Issue #4, with effort; §5 lists the edits made to Issues #4 and #1; §6 lists harness asks; §7 lists deferred mechanisms with their triggers; §8 lists risks and what remains unverified. Open an area file only when you need the evidence behind a point. The reviews are for checking how a claim was verified or corrected.
 
 ## Files
 
@@ -32,7 +32,7 @@ Start with [`07-recommendation.md`](07-recommendation.md). Its TL;DR gives the a
 | [`04-performance.md`](04-performance.md) | Measured on Electron 45.5.0 (under load; ratios only): batch logs, virtualise only the log tail, memoise cards by id, no `utilityProcess`, never block main, a main-owned hidden-window policy, bundling and library sizes. | PASS WITH FIXES · [review](reviews/04-performance.md) |
 | [`05-security-architecture.md`](05-security-architecture.md) | Where each v1 security-bar item lives: nine choke points with lint or type guards and tests; IPC validated in main with TypeBox; DOMPurify ≥ 3.5.0 under Trusted Types; hardening, fuses, browser-mode risks, CI suites per layer. | PASS WITH FIXES · [review](reviews/05-security-architecture.md) |
 | [`06-testing-and-tooling.md`](06-testing-and-tooling.md) | Vite + esbuild build, tsconfig layout, Vitest (node + jsdom), co-located tests plus one `tests/` root, the IPC contract suite, Playwright for browser and Electron, fixtures, lint and format, harness gate commands. | PASS WITH FIXES · [review](reviews/06-testing-and-tooling.md) |
-| [`07-recommendation.md`](07-recommendation.md) | **The decision document:** the architecture, the owner's questions answered, resolved disagreements, the reference architecture, the revised Day 1/Day 2 plan and effort, proposed Issue edits, harness asks, deferred mechanisms and open risks. PASS WITH FIXES · [review](reviews/07-recommendation.md) |
+| [`07-recommendation.md`](07-recommendation.md) | **The decision document:** the architecture, the owner's questions answered, resolved disagreements, the reference architecture, the revised Day 1/Day 2 plan and effort, the Issue edits (applied), harness asks, deferred mechanisms and open risks. PASS WITH FIXES · [review](reviews/07-recommendation.md) |
 
 All reviews: [`reviews/`](reviews/).
 
