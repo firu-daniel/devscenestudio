@@ -1,14 +1,8 @@
-// Shape of the API the preload exposes on `window.studio`. Keep in step with src/preload/preload.ts.
-interface StudioVersions {
-  readonly electron: string;
-  readonly chrome: string;
-  readonly node: string;
-}
+import type { StudioApi } from "../shared/contract/studio-api";
 
-interface StudioApi {
-  readonly versions: StudioVersions;
-}
-
-interface Window {
-  readonly studio: StudioApi;
+declare global {
+  interface Window {
+    // Set by the preload in Electron. Absent in a plain browser.
+    readonly studio?: StudioApi;
+  }
 }

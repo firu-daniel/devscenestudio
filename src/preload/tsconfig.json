@@ -1,0 +1,13 @@
+// Preload (harness `general` row): sandboxed, bundled to one CJS file by esbuild.
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": true,
+    "tsBuildInfoFile": "../../.tsbuild/preload.tsbuildinfo",
+    "lib": ["ES2024", "DOM"],
+    "types": []
+  },
+  "include": ["**/*.ts"],
+  "references": [{ "path": "../shared" }]
+}

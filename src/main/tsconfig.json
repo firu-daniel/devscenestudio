@@ -1,0 +1,13 @@
+// LAYER main: Node + Electron main process. Node types, no DOM.
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": true,
+    "tsBuildInfoFile": "../../.tsbuild/main.tsbuildinfo",
+    "lib": ["ES2024"],
+    "types": ["node"]
+  },
+  "include": ["**/*.ts"],
+  "references": [{ "path": "../shared" }]
+}

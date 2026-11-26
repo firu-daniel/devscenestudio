@@ -7,7 +7,7 @@ function createMainWindow(): BrowserWindow {
     height: 720,
     show: false,
     webPreferences: {
-      preload: path.join(__dirname, "..", "preload", "preload.js"),
+      preload: path.join(__dirname, "..", "preload", "preload.cjs"),
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
@@ -25,7 +25,7 @@ function createMainWindow(): BrowserWindow {
   return window;
 }
 
-app.whenReady().then(() => {
+void app.whenReady().then(() => {
   createMainWindow();
 
   app.on("activate", () => {

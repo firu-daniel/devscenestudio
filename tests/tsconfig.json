@@ -1,0 +1,15 @@
+// LAYER tests: cross-layer suites. Deliberately NOT composite: its suites import main,
+// preload and renderer source, which a composite project would refuse (TS6307).
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "incremental": true,
+    "tsBuildInfoFile": "../.tsbuild/tests.tsbuildinfo",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["node", "@testing-library/jest-dom/vitest"]
+  },
+  "include": ["**/*.ts", "**/*.tsx"],
+  "references": [{ "path": "../src/shared" }]
+}

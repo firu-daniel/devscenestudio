@@ -1,0 +1,14 @@
+// Root config files (vite, vitest, playwright). Vite loads them natively, so their
+// relative imports carry the .ts extension.
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "incremental": true,
+    "tsBuildInfoFile": ".tsbuild/tools.tsbuildinfo",
+    "lib": ["ES2024"],
+    "types": ["node"],
+    "allowImportingTsExtensions": true
+  },
+  "include": ["*.config.ts"]
+}
