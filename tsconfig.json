@@ -1,19 +1,14 @@
+// Solution file: builds nothing itself. `tsc -b` checks each project below, and the
+// project references make an import across Electron processes a compile error (TS6307).
+// Layout and flags: docs/architecture-research/06-testing-and-tooling.md §3.
 {
-  "compilerOptions": {
-    "target": "ES2023",
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
-    "moduleDetection": "auto",
-    "lib": ["ES2023", "DOM"],
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitOverride": true,
-    "noFallthroughCasesInSwitch": true,
-    "exactOptionalPropertyTypes": true,
-    "skipLibCheck": true,
-    "rootDir": "src",
-    "outDir": "dist",
-    "sourceMap": true
-  },
-  "include": ["src/**/*.ts"]
+  "files": [],
+  "references": [
+    { "path": "./src/shared" },
+    { "path": "./src/main" },
+    { "path": "./src/preload" },
+    { "path": "./src/renderer" },
+    { "path": "./tests" },
+    { "path": "./tsconfig.tools.json" }
+  ]
 }

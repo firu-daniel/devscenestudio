@@ -1,0 +1,11 @@
+# Generated or vendored
+dist/
+release/
+.tsbuild/
+coverage/
+test-results/
+playwright-report/
+package-lock.json
+
+# Research prose: hand-formatted wide tables; Prettier would pad every row.
+docs/

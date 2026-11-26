@@ -12,3 +12,11 @@ release/
 *.provisionprofile
 
 .DS_Store
+
+# TypeScript build-info and declaration cache (tsc -b)
+.tsbuild/
+
+# Test output
+coverage/
+test-results/
+playwright-report/

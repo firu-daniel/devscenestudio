@@ -1,0 +1,16 @@
+// LAYER shared: pure TypeScript. No DOM lib and no ambient types, so `document`,
+// `window` or `process` here fail to compile. Referenced projects may not disable
+// emit (TS6310), so it emits declarations only, into the ignored .tsbuild/ cache.
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "emitDeclarationOnly": true,
+    "outDir": "../../.tsbuild/shared",
+    "tsBuildInfoFile": "../../.tsbuild/shared.tsbuildinfo",
+    "rootDir": ".",
+    "lib": ["ES2024"],
+    "types": []
+  },
+  "include": ["**/*.ts"]
+}

@@ -1,0 +1,20 @@
+// Flags shared by every project. Main and preload are bundled by esbuild and the renderer
+// by Vite, so no output is loaded by Node's own resolver: "bundler" resolution everywhere.
+{
+  "compilerOptions": {
+    "target": "ES2024",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": true,
+    // No enums or namespaces: esbuild and Vite transpile one file at a time, like tsc must.
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true
+  }
+}

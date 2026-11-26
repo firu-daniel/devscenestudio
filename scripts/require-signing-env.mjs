@@ -5,6 +5,8 @@ const missing = required.filter((name) => !process.env[name]);
 
 if (missing.length > 0) {
   console.error(`Release build refused: ${missing.join(", ")} not set.`);
-  console.error("Source your private signing env file first, e.g. `source ~/.config/devscenestudio/signing.env`.");
+  console.error(
+    "Source your private signing env file first, e.g. `source ~/.config/devscenestudio/signing.env`.",
+  );
   process.exit(1);
 }

@@ -6,6 +6,8 @@ directories:
 files:
   - dist/**/*
   - "!dist/**/*.map"
+  # Browser mode (fixture-backed, for Playwright and the QA agent) never ships.
+  - "!dist/browser/**"
   - package.json
 
 mac:
