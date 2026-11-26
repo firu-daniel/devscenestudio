@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeVersions } from "./versions";
+import { describeVersions } from "../versions";
 
 describe("describeVersions", () => {
   it("lists the three runtimes in a fixed order", () => {
