@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createFixtureStudio } from "./fixture";
-import { scenarios } from "./fixtures";
+import { createFixtureStudio } from "../fixture";
+import { scenarios } from "../fixtures";
 
 describe("createFixtureStudio", () => {
   it("plays the default scenario when ?scenario= is absent", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { StudioApi } from "../../shared/contract/studio-api";
+import type { StudioApi } from "../../../shared/contract/studio-api";
 
 const fake = (electron: string): StudioApi => ({
   versions: { electron, chrome: "c", node: "n" },
@@ -8,7 +8,7 @@ const fake = (electron: string): StudioApi => ({
 // A fresh module per test: the installed adapter is module state.
 const load = async () => {
   vi.resetModules();
-  return import("./studio");
+  return import("../studio");
 };
 
 describe("getStudio", () => {

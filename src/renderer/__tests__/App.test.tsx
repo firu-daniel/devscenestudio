@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { App } from "./App";
-import { installStudio } from "./studio/studio";
+import { App } from "../App";
+import { installStudio } from "../studio/studio";
 
 describe("App", () => {
   it("shows the runtime versions from the installed StudioApi", () => {

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { StudioApi } from "../../shared/contract/studio-api";
-import { createIpcStudio } from "./ipc";
+import type { StudioApi } from "../../../shared/contract/studio-api";
+import { createIpcStudio } from "../ipc";
 
 const setPreload = (studio: StudioApi | undefined) =>
   Object.defineProperty(window, "studio", {

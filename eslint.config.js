@@ -117,7 +117,7 @@ export default defineConfig([
   {
     // domain imports nothing outside domain.
     files: ["src/shared/domain/**/*.ts"],
-    ignores: ["**/*.test.ts"],
+    ignores: ["**/__tests__/**"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -135,7 +135,7 @@ export default defineConfig([
   {
     // contract imports only domain (and typebox, in schemas.ts alone).
     files: ["src/shared/contract/**/*.ts"],
-    ignores: ["**/*.test.ts", "src/shared/contract/schemas.ts"],
+    ignores: ["**/__tests__/**", "src/shared/contract/schemas.ts"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -216,7 +216,26 @@ export default defineConfig([
   },
   // Tests render components and export nothing: Fast Refresh rules don't apply.
   {
-    files: ["src/renderer/**/*.test.{ts,tsx}"],
+    files: ["src/renderer/**/__tests__/**"],
     rules: { "react-refresh/only-export-components": "off" },
+  },
+
+  // --- test placement (owner decision 2026-11-26) ------------------------------------
+  // Unit and component tests live in a `__tests__/` folder beside the code they test,
+  // inside the same layer. The root `tests/` folder is the cross-layer `tests` layer.
+  // Kept last: it replaces any earlier no-restricted-syntax for a misplaced file.
+  {
+    files: ["src/**/*.{test,spec}.{ts,tsx}"],
+    ignores: ["src/**/__tests__/**"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "Program",
+          message:
+            "Test files go in a __tests__/ folder beside the code they test.",
+        },
+      ],
+    },
   },
 ]);
