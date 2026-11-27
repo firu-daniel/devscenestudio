@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "projectName": "devscenestudio",
+  "defaultBranch": "dev",
+  "protectedBranches": [
+    "main",
+    "dev"
+  ],
+  "stateDir": "devscene/",
+  "appDir": ".",
+  "scriptsDir": "devscene-scripts",
+  "githooksDir": "githooks",
+  "agentModel": "opus",
+  "pushEnvPath": ".claude/push-notify.env",
+  "detection": {
+    "preset": "flat",
+    "signal": "flat:fallback",
+    "evidence": "no signal matched",
+    "commandFamily": "npm"
+  },
+  "layers": [
+    {
+      "name": "general",
+      "path": ".",
+      "conventions": ".claude/context/conventions.md"
+    }
+  ],
+  "commands": {
+    "typecheck": "bash devscene-scripts/typecheck.sh",
+    "test": "bash devscene-scripts/test.sh",
+    "build": "npm run build",
+    "devServer": "bash devscene-scripts/start-dev-server.sh",
+    "depInstall": "npm ci --ignore-scripts"
+  },
+  "phases": {
+    "qa": false,
+    "docs": true,
+    "parity": false
+  },
+  "docs": {
+    "root": "docs"
+  },
+  "forge": "github",
+  "execution": {
+    "target": "github-actions",
+    "scriptDrivenPlanning": false
+  }
+}

@@ -7,5 +7,14 @@ test-results/
 playwright-report/
 package-lock.json
 
-# Research prose: hand-formatted wide tables; Prettier would pad every row.
+# Research and doc prose: hand-formatted wide tables; Prettier would pad every row.
+research/
 docs/
+
+# DevScene harness: generated and rewritten by `devscene init`/`config set`; not ours to format
+.claude/
+devscene/
+devscene-scripts/
+devscene.config.json
+githooks/
+.github/workflows/devscene-*.yml

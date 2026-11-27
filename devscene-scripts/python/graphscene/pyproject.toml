@@ -1,0 +1,67 @@
+[project]
+name = "graphscene"
+version = "0.1.0"
+description = "A generic flow-graph navigation library."
+requires-python = ">=3.11"
+dependencies = [
+    "jsonschema>=4.26",
+    "referencing>=0.37",
+]
+
+[project.scripts]
+graphscene = "graphscene.facade.cli:main"
+
+[dependency-groups]
+dev = [
+    "ruff",
+    "mypy",
+    "pytest",
+    "types-jsonschema",
+    "import-linter",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/graphscene"]
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+files = ["src", "tests"]
+mypy_path = "src"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-p no:cacheprovider -rs"
+
+[tool.importlinter]
+root_package = "graphscene"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+id = "graphscene-layers"
+name = "Layers import downward only; adapters and engine are independent siblings"
+type = "layers"
+layers = [
+    "graphscene.facade",
+    "graphscene.adapters | graphscene.engine",
+    "graphscene.model",
+]
+
+[[tool.importlinter.contracts]]
+id = "graphscene-jsonschema-in-adapters-only"
+name = "jsonschema and referencing are imported by adapters only, never by model or engine"
+type = "forbidden"
+source_modules = ["graphscene.model", "graphscene.engine"]
+forbidden_modules = ["jsonschema", "referencing"]

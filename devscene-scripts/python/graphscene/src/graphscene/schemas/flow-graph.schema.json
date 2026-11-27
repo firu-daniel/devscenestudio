@@ -1,0 +1,495 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "flow graph",
+  "description": "The routing of one flow as data, format 5: which agent each node dispatches, where each of its outcomes routes, which round node dispatches a set of gates together, joins them and routes on their recorded verdicts, which counter a revision loop increments and what fires when that counter reaches its cap. The graph declares its own outcomes, bindings and skip predicates under vocabulary, each mapped to an engine primitive, and the engine routes on the primitive, never on the name. This schema checks shape only: that every name a graph uses is one it declares under vocabulary, and that each binding is used where its primitive allows, is checked by graphscene.vocabulary, because JSON Schema cannot take an enum from the document's own data. A graph may also declare hooks under vocabulary and name them before or after a node: the host runs them in run mode, and GraphScene runs none itself.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["formatVersion", "flow", "description", "vocabulary", "start", "entries", "counters", "paths", "reports", "nodes"],
+  "properties": {
+    "formatVersion": {
+      "const": 5,
+      "description": "Version of this graph format. A change to the key set raises it, so a walker never routes on a graph whose shape it does not know."
+    },
+    "flow": {
+      "$ref": "#/definitions/identifier",
+      "description": "The flow this graph routes."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What the graph routes and what it leaves in the instruction core."
+    },
+    "vocabulary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcomes", "bindings", "predicates"],
+      "properties": {
+        "outcomes": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "$ref": "#/definitions/outcomeName" },
+          "additionalProperties": { "$ref": "#/definitions/outcomeDeclaration" },
+          "description": "Every outcome a node may route on, by name. A round's join reads verdict, routing on the outcome declaring pass or the one declaring fail, and held, which holds that outcome until the round's other gates finish. An empty object declares a plain outcome."
+        },
+        "bindings": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "$ref": "#/definitions/bindingName" },
+          "additionalProperties": { "$ref": "#/definitions/bindingDeclaration" },
+          "description": "Every binding an edge, an onCap or a terminal node may hand the run to, by name, each mapped to the engine primitive that gives it behaviour."
+        },
+        "predicates": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/definitions/predicateName" },
+          "additionalProperties": { "$ref": "#/definitions/predicateDeclaration" },
+          "description": "Every predicate a skip entry may name, by name. The host answers each predicate true, false or \"cannot answer\", and \"cannot answer\" refuses: the walk does not guess. The graph never reads configuration; what a predicate means is the host's."
+        },
+        "hooks": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/definitions/hookName" },
+          "additionalProperties": { "type": "object", "additionalProperties": false },
+          "description": "Every hook a node's before or after may name, by name. The host runs each one in run mode; what a hook does is the host's."
+        }
+      },
+      "description": "The names this graph declares and the engine primitive each maps to."
+    },
+    "start": {
+      "$ref": "#/definitions/nodeId",
+      "description": "The node a fresh run enters at."
+    },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/definitions/nodeId" },
+      "description": "Every node a start may name as its entry, the graph's own start included. A walk continued from its saved state resumes at its pending node and names none of these; any node not listed here is refused as a start entry."
+    },
+    "counters": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/definitions/identifier" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cap"],
+        "properties": {
+          "cap": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The value at which an incrementing edge stops routing and takes its onCap edge instead."
+          }
+        }
+      },
+      "description": "The loop counters, by name. An edge's increment and reset name one of these; the heartbeat's {iteration} is the counter of that name."
+    },
+    "paths": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/definitions/identifier" },
+      "additionalProperties": { "type": "string", "minLength": 1 },
+      "description": "Named run-artifact path templates, with {state_dir} and {branch} resolved by the walker, and {round} resolved to the round number in a round node's revisionNote. A binding edge's evidence names one of these as the file the operator is pointed at; a round node's plan and revisionNote name these too."
+    },
+    "reports": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/definitions/identifier" },
+      "description": "The report slots a run fills in. An edge's report names slots from this list; the walker prints one report: line per slot recorded, in this order, at the terminal node."
+    },
+    "nodes": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "$ref": "#/definitions/nodeId" },
+      "additionalProperties": { "$ref": "#/definitions/node" },
+      "description": "Every node of the flow, by id. A dispatch node sends one agent out and routes on what it returns; a round node sends no agent itself: arriving at it from outside its gates opens the round, which dispatches its gates as one set, and it routes on its gates' recorded verdicts once all are in; a terminal node ends the graph by handing off to its binding."
+    }
+  },
+  "definitions": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "nodeId": {
+      "$ref": "#/definitions/identifier",
+      "description": "A key of nodes."
+    },
+    "outcomeName": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_]*$",
+      "description": "A key of vocabulary.outcomes."
+    },
+    "bindingName": {
+      "type": "string",
+      "pattern": "^<[a-z][a-z0-9_]*>$",
+      "description": "A key of vocabulary.bindings, named and never resolved here."
+    },
+    "predicateName": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*$",
+      "description": "A key of vocabulary.predicates."
+    },
+    "hookName": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "A key of vocabulary.hooks."
+    },
+    "hookList": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/definitions/hookName" }
+    },
+    "reasonName": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "One of the reasons a stop binding declares."
+    },
+    "outcomeDeclaration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "verdict": {
+          "enum": ["pass", "fail"],
+          "description": "The verdict a round's join reads off this outcome when a gate returns it."
+        },
+        "held": {
+          "const": true,
+          "description": "A gate returning this outcome is held until the round's other gates finish."
+        }
+      },
+      "not": { "required": ["verdict", "held"] },
+      "description": "An outcome carries at most one of verdict and held."
+    },
+    "bindingDeclaration": {
+      "type": "object",
+      "required": ["primitive"],
+      "properties": {
+        "primitive": {
+          "enum": ["interrupt", "stop", "end"],
+          "description": "The engine primitive this binding maps to: interrupt parks the walk, which resumes with resumeOutcome at the edge's resume node; stop ends the walk with one of its declared reasons; end finishes the walk and is taken only by a terminal node."
+        }
+      },
+      "if": { "properties": { "primitive": { "const": "interrupt" } } },
+      "then": { "$ref": "#/definitions/interruptBinding" },
+      "else": {
+        "if": { "properties": { "primitive": { "const": "stop" } } },
+        "then": { "$ref": "#/definitions/stopBinding" },
+        "else": {
+          "if": { "properties": { "primitive": { "const": "end" } } },
+          "then": { "$ref": "#/definitions/endBinding" }
+        }
+      }
+    },
+    "interruptBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primitive", "resumeOutcome"],
+      "properties": {
+        "primitive": { "const": "interrupt" },
+        "resumeOutcome": {
+          "$ref": "#/definitions/outcomeName",
+          "description": "The outcome the walk resumes with once the interrupt is answered."
+        }
+      }
+    },
+    "stopBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primitive", "reasons"],
+      "properties": {
+        "primitive": { "const": "stop" },
+        "reasons": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/definitions/reasonName" },
+          "description": "Every reason an edge or an onCap handing the run to this binding may give."
+        }
+      }
+    },
+    "endBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primitive"],
+      "properties": {
+        "primitive": { "const": "end" }
+      }
+    },
+    "predicateDeclaration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["records", "inRoundCounts"],
+      "properties": {
+        "records": {
+          "type": "string",
+          "pattern": "^[a-z][a-z-]*$",
+          "description": "The status the walk records for a node this predicate skips. A skipped node dispatches nothing, and a round's join counts it as passed."
+        },
+        "inRoundCounts": {
+          "type": "boolean",
+          "description": "Whether a cap's round counts keep a node this predicate skipped."
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "enum": ["dispatch", "round", "terminal"],
+          "description": "dispatch sends an agent and routes on its outcome; round is opened by arriving at it from outside its gates and routes on its gates' recorded verdicts once all are in; terminal ends the graph."
+        }
+      },
+      "if": { "properties": { "kind": { "const": "terminal" } } },
+      "then": { "$ref": "#/definitions/terminalNode" },
+      "else": {
+        "if": { "properties": { "kind": { "const": "round" } } },
+        "then": { "$ref": "#/definitions/roundNode" },
+        "else": { "$ref": "#/definitions/dispatchNode" }
+      }
+    },
+    "roundNode": {
+      "type": "object",
+      "description": "A round that declares writer is a review loop: its writer writes what the gates review and revises it when the round fails, it requires counter and convergingFrom, and it alone may carry plan and revisionNote. A round without writer dispatches its gates as one set and joins them, and nothing more.",
+      "additionalProperties": false,
+      "required": ["kind", "parallel", "gates", "outcomes"],
+      "dependencies": {
+        "writer": ["counter", "convergingFrom"],
+        "counter": ["writer"],
+        "convergingFrom": ["writer"],
+        "plan": ["writer"],
+        "revisionNote": ["writer"]
+      },
+      "properties": {
+        "kind": { "const": "round" },
+        "parallel": {
+          "const": true,
+          "description": "The graph's declaration that this round's gates are independent — none reads another's file of the same round — so a driver may dispatch them at the same time. Whether it does is the driver's choice."
+        },
+        "gates": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/definitions/nodeId" },
+          "description": "The dispatch nodes this round dispatches together as one set and joins, listed in gate order — the order the walker prints their dispatch blocks and lists their round files. The walker reads which nodes are gates off this list and names none in its code."
+        },
+        "writer": {
+          "$ref": "#/definitions/nodeId",
+          "description": "The dispatch node that writes the plan the gates review, and revises it when the round fails. Declaring it makes the round a review loop."
+        },
+        "counter": {
+          "$ref": "#/definitions/identifier",
+          "description": "The counters entry that alone drives this loop's cap and its gates' review mode. The round number that names round files is kept apart from it."
+        },
+        "convergingFrom": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "The 0-based counter value from which the gates review in converging mode; below it they review in full."
+        },
+        "plan": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/definitions/identifier" },
+          "description": "The paths entries naming the plan the gates review."
+        },
+        "revisionNote": {
+          "$ref": "#/definitions/identifier",
+          "description": "The paths entry naming the writer's revision note for a round; its template carries {round}."
+        },
+        "outcomes": {
+          "type": "object",
+          "minProperties": 2,
+          "maxProperties": 2,
+          "propertyNames": { "$ref": "#/definitions/outcomeName" },
+          "additionalProperties": { "$ref": "#/definitions/edge" },
+          "description": "Where the round routes: on the outcome declaring verdict pass when no gate failed the round, on the one declaring verdict fail otherwise. Exactly these two."
+        },
+        "before": {
+          "$ref": "#/definitions/hookList",
+          "description": "Hooks the host runs in run mode before this node."
+        },
+        "after": {
+          "$ref": "#/definitions/hookList",
+          "description": "Hooks the host runs in run mode after this node."
+        }
+      }
+    },
+    "terminalNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "binding"],
+      "properties": {
+        "kind": { "const": "terminal" },
+        "binding": { "$ref": "#/definitions/bindingName" },
+        "before": {
+          "$ref": "#/definitions/hookList",
+          "description": "Hooks the host runs in run mode before this node."
+        }
+      }
+    },
+    "dispatchNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "agent", "heartbeat", "outcomes"],
+      "properties": {
+        "kind": { "const": "dispatch" },
+        "agent": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "The agent definition this node dispatches, by its name: field."
+        },
+        "heartbeat": {
+          "type": "string",
+          "pattern": "\\{iteration\\}",
+          "description": "The line printed before every dispatch of this node. It carries {iteration}, so a stalled loop is visible from the heartbeat alone."
+        },
+        "prompts": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/definitions/identifier" },
+          "description": "The dispatch prompt variants this node has in the instruction core. An edge's prompt selects one of them for the next dispatch."
+        },
+        "findingsFolder": {
+          "type": "string",
+          "pattern": "^\\{state_dir\\}/.+/$",
+          "description": "The folder this reviewer's findings are written to."
+        },
+        "skip": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/skipEntry" },
+          "description": "Evaluated in order before the node dispatches; the first entry whose predicate holds routes to its to without dispatching."
+        },
+        "outcomes": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "$ref": "#/definitions/outcomeName" },
+          "additionalProperties": { "$ref": "#/definitions/edge" },
+          "description": "Where each outcome routes. An outcome the agent returns that is not listed here is a fault in the graph, never a fallthrough."
+        },
+        "promptSource": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Where the host reads this node's agent prompt from. GraphScene stores it and reads nothing in it."
+        },
+        "before": {
+          "$ref": "#/definitions/hookList",
+          "description": "Hooks the host runs in run mode before this node."
+        },
+        "after": {
+          "$ref": "#/definitions/hookList",
+          "description": "Hooks the host runs in run mode after this node."
+        }
+      }
+    },
+    "skipEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["when", "to"],
+      "properties": {
+        "when": {
+          "$ref": "#/definitions/predicateName",
+          "description": "The vocabulary.predicates entry whose true answer skips this node."
+        },
+        "to": { "$ref": "#/definitions/nodeId" },
+        "report": { "$ref": "#/definitions/report" }
+      }
+    },
+    "report": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "$ref": "#/definitions/identifier" },
+      "additionalProperties": { "type": "string", "pattern": "^[a-z][a-z_-]*$" },
+      "description": "The report slots this route fills, each with the status it records."
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The operator-facing sentence, with {cap} resolved to the counter's cap and, on a binding edge reached from a round node, {open_gates} resolved to the comma-joined ids of the gates that failed the closing round."
+    },
+    "roundCounts": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/definitions/identifier" },
+      "description": "The dispatch nodes, by node id, whose round counts a cap's stop reports. The walker reads each one's findingsFolder and counts its failing round files, so each must name a dispatch node that carries one; a node a skip predicate keeps out of round counts is omitted."
+    },
+    "evidence": {
+      "$ref": "#/definitions/identifier",
+      "description": "The paths entry naming the file the operator is pointed at."
+    },
+    "edge": {
+      "type": "object",
+      "if": { "required": ["binding"] },
+      "then": { "$ref": "#/definitions/bindingEdge" },
+      "else": { "$ref": "#/definitions/ordinaryEdge" }
+    },
+    "ordinaryEdge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["to"],
+      "dependencies": {
+        "increment": ["onCap"],
+        "onCap": ["increment"]
+      },
+      "properties": {
+        "to": {
+          "$ref": "#/definitions/nodeId",
+          "description": "The node this outcome routes to."
+        },
+        "increment": {
+          "$ref": "#/definitions/identifier",
+          "description": "The counter this route increments. It requires onCap, so every incrementing route says what happens at the cap."
+        },
+        "reset": {
+          "$ref": "#/definitions/identifier",
+          "description": "The counter this route resets to its start value."
+        },
+        "prompt": {
+          "$ref": "#/definitions/identifier",
+          "description": "The prompt variant the target node is dispatched with."
+        },
+        "ledger": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9.]*$",
+          "description": "The flow-progress ledger entry this route records."
+        },
+        "report": { "$ref": "#/definitions/report" },
+        "onCap": { "$ref": "#/definitions/onCapEdge" }
+      }
+    },
+    "onCapEdge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["binding", "reason"],
+      "properties": {
+        "binding": { "$ref": "#/definitions/bindingName" },
+        "reason": { "$ref": "#/definitions/reasonName" },
+        "summary": { "$ref": "#/definitions/summary" },
+        "roundCounts": { "$ref": "#/definitions/roundCounts" },
+        "evidence": { "$ref": "#/definitions/evidence" }
+      },
+      "description": "The binding taken instead of routing when the incremented counter has reached its cap."
+    },
+    "bindingEdge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["binding"],
+      "properties": {
+        "binding": {
+          "$ref": "#/definitions/bindingName",
+          "description": "The binding this outcome hands the run to instead of routing to a node."
+        },
+        "resume": {
+          "$ref": "#/definitions/nodeId",
+          "description": "The node the run resumes at once an interrupt is answered."
+        },
+        "reason": {
+          "$ref": "#/definitions/reasonName",
+          "description": "Why a stop ends the run: one of the reasons its binding declares."
+        },
+        "summary": { "$ref": "#/definitions/summary" },
+        "roundCounts": { "$ref": "#/definitions/roundCounts" },
+        "evidence": { "$ref": "#/definitions/evidence" }
+      }
+    }
+  }
+}
