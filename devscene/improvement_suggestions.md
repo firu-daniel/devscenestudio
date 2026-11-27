@@ -2,7 +2,7 @@
 
 **What this is.** A human-triaged checklist of the harness and workflow problems that runs actually hit, kept so a recurring defect is diagnosed from how often it recurs across runs rather than rediscovered from scratch each time. **No agent reads this file.** Unlike the lessons ledger beside it, whose rules bind planning and review work, these are maintenance items with no value to an agent implementing a change, so this ledger is on no agent's reading list.
 
-**How entries arrive.** Each run writes to exactly one intake file, `improvement_observations/<branch>.md`, at the end of the run, and on the opt-in script-driven planning path its planning driver also writes to it during planning; a human folds those intakes into this file. One intake file per branch is the design: a single shared append target across parallel runs is a reliable generator of merge conflicts, which is the cost this split avoids.
+**How entries arrive.** Each run writes exactly one intake file at `improvement_observations/<branch>.md`, once, at the end of the run; a human folds those intakes into this file. One intake file per branch is the design: a single shared append target across parallel runs is a reliable generator of merge conflicts, which is the cost this split avoids.
 
 **This ledger is appended to and never rewritten.** A closed entry stays in place with its outcome appended rather than being deleted, and an entry is cross-referenced by quoting its problem statement rather than by position, because entries are inserted as intake is folded in. The file accumulates over the whole life of the project and is the only copy of that history.
 

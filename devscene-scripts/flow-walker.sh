@@ -1,284 +1,629 @@
 #!/usr/bin/env bash
 # flow-walker.sh — the next step of a declared flow, read off its graph instead
 # of worked out from prose: given the flow, the branch and the outcome of the
-# node that just ran, print the next action in one fixed form. This script is a
-# hand-off: the walk is `devscene-flow-walker`'s, the flow host's compatibility
-# command (`devscene-flow-host/README.md` → `## The command line`), and HAND-OFF
-# below is all this script does itself.
+# node that just ran, print the next action in one fixed form.
 #
 # THE WALKER ROUTES; THE ORCHESTRATOR JUDGES. It owns the next node, the shared
-# counter and its cap, both skip semantics, the round number, each reviewer's
-# `iteration:` and review-mode arguments and the escalation payload, and it
-# rejects an outcome the pending node does not declare. Which outcome a return
-# carries, and what a binding resolves to, stay the orchestrator's.
+# counter and its cap, both skip semantics, each reviewer's `iteration:`
+# argument and the escalation payload, and it rejects an outcome the pending
+# node does not declare. Which outcome a return carries, and what a binding
+# resolves to, stay the orchestrator's.
 #
 # THE SAFETY CONTRACT IS DELIBERATELY NOT THE WALKER'S. The STOP check, the
 # `.dispatch_counter` increment, the PAUSE check and the halt messages stay
 # orchestrator steps, so the heartbeat carries the literal slot
 # `(#<total_dispatches>)` for the orchestrator to fill. A binding is printed by
 # NAME and never resolved; no dispatch prompt is composed — only the values the
-# core's dispatch block lacks (`arg.iteration`, `arg.review_mode`,
-# `arg.findings_file`) and the prompt variant.
+# core's dispatch block lacks (`arg.iteration`, `arg.findings_file`) and the
+# prompt variant.
 #
 # USAGE — each call one literal command from the repository root:
 #
 #   bash <scripts_dir>/flow-walker.sh start   --flow <flow> --branch <branch> [--entry <node>] [--skipped <ids|none>]
-#   bash <scripts_dir>/flow-walker.sh next    --flow <flow> --branch <branch> --outcome <outcome> [--node <node>] [--findings <path>] [--skipped <ids|none>]
+#   bash <scripts_dir>/flow-walker.sh next    --flow <flow> --branch <branch> --outcome <outcome> [--findings <path>] [--skipped <ids|none>]
 #   bash <scripts_dir>/flow-walker.sh current --flow <flow> --branch <branch>
-#   bash <scripts_dir>/flow-walker.sh check-round-file --findings <path>
 #
-#   `check-round-file` runs the check a round gate's return must pass, for a
-#   flow routed by prose. It is read-only, takes no lock, reads no configuration
-#   or graph, and refuses `--flow` and `--branch`; a relative <path> resolves
-#   against the repository root.
+#   `current` is read-only: it re-prints the saved pending action byte for
+#   byte, and is how a planning (re-)entry finds a saved walk to continue. Its
+#   output names the saved `awaiting`: `action: dispatch` is `dispatch`,
+#   `binding: <ask>` is `answer`, any other `binding:` (`<escalate>`,
+#   `<terminal_handoff>`) is `done` — a finished walk, re-printed but continued
+#   by nothing: `next` refuses it with exit 1.
 #
-#   `current` is read-only and takes no lock: it re-renders the saved pending
-#   step in the form it was printed, with the values read from disk when it was
-#   printed, and is how a planning (re-)entry finds a saved walk to continue.
-#   Its output names the saved `awaiting`: one `action: dispatch` block of a
-#   non-gate node is `dispatch`; gate blocks are `set`; `binding: <ask>` is
-#   `answer`, any other `binding:` (`<escalate>`, `<terminal_handoff>`) is
-#   `done` — a finished walk, re-printed but continued by nothing: `next`
-#   refuses it with exit 1.
-#
-#   <outcome>  a key of the pending node's `outcomes` (of the `--node` gate
-#              while a set is pending), or `answered` while an `<ask>` is
-#              pending. `FAIL` requires `--findings`; so do `PASS` and `FAIL`
-#              at a round gate — a node some `round` node lists in its
-#              `gates` — whose reviewer writes a file every round.
-#   --node     the node the outcome is for, `[a-z0-9_]` only. Required while a
-#              set is pending, naming a gate of the set with no recorded
-#              outcome; otherwise optional and, when given, the pending node.
-#   --findings the reviewer's findings_file; it may not carry a tab. A round
-#              gate's `PASS` or `FAIL` reads it, absolute as given and relative
-#              under the repository root (ROUNDS, on a refused file).
+#   <outcome>  a key of the pending node's `outcomes`, or `answered` while an
+#              `<ask>` is pending. `FAIL` requires `--findings`.
 #   --skipped  the run mode's skipped ids; read only when no flow-progress
 #              ledger exists, and re-read on every arrival at a gated node.
-#   The graph is `<this script's dir>/flows/<flow>.graph.json`, formatVersion
-#   5; the root is a bare `git rev-parse --show-toplevel` in the working
-#   directory. Each branch keeps its own walk, so a call naming another branch
-#   is not refused; one naming another flow than the branch's saved walk is.
-#
-# ROUNDS — a `round` node dispatches nothing. Arriving at it (the writer's
-# outcome, or a `start`) OPENS the round: each gate's skip constructs are
-# evaluated in `gates` order before anything is printed, and every gate not
-# skipped is due, all dispatched at once as one SET. Each gate's outcome is
-# recorded by its own `next --node <gate>`, in any order; until the last one
-# the walker prints `wait`. The last outcome is the JOIN. A gate whose round
-# file was refused is dispatched again first, as one set in the same round,
-# even beside a held gate; once no refused gate is out, when any gate's outcome
-# was `error` or `blocker` (HELD, not routed when recorded), the first held
-# gate's binding is printed and the round is not closed; otherwise the round
-# closes FAIL when a gate recorded FAIL (a skipped gate counts as passed), else
-# PASS — with every gate skipped, at once on arrival — followed through the
-# node's `outcomes` as an agent's outcome is. Two numbers are kept apart: the
-# loop COUNTER (`counter.<name>`, the heartbeat's `{iteration}`) alone drives
-# the cap and the review mode; the ROUND NUMBER names the round files, is the
-# same index in every gate's folder, and carries on across the branch's
-# planning history. A `start` at a round's writer or round node resumes the
-# round number and the round's recorded verdicts from the round files on disk;
-# convergence is never inferred from files.
-#
-# A REFUSED ROUND FILE records no verdict. A gate's `PASS` or `FAIL` whose
-# --findings `check-round-file` would refuse marks the gate for re-dispatch,
-# and the walker waits for the gates still out; with none out, every marked
-# gate is dispatched again as one set, in the same round (ROUNDS). The third
-# refusal of one gate in a round holds it as `error`. A refusal moves neither
-# the round number nor the counter, and never reaches the writer.
+#   The graph is `<this script's dir>/flows/<flow>.graph.json`; the root is a
+#   bare `git rev-parse --show-toplevel` in the working directory.
 #
 # OUTPUT — stdout, `key: value` lines, in this order:
 #
 #   dispatch  action: dispatch / node: / agent: / prompt: (writer nodes) /
-#             arg.iteration: (a round's writer, either variant: the round
-#             number the write feeds) / arg.findings_file: (with `prompt:
-#             revision`: one line per findings file of the closed round, in
-#             `gates` order; `ui_writer`'s one) / arg.iteration: (a round gate:
-#             the round number; any other reviewer: the next free index in its
-#             findings folder) / arg.review_mode: full|converging (a round
-#             gate: `full` while the counter is below the round node's
-#             `convergingFrom`) / skip: <node> <skipped|passed-by-exclusion>,
-#             round: <n> <PASS|FAIL> (<n> the round it closed) and ledger: <id>
-#             lines for what the walk passed through /
+#             arg.iteration: (reviewer nodes: the next free index in the node's
+#             findings folder, never the counter) / arg.findings_file: (with
+#             `prompt: revision`) / skip: <node> <skipped|passed-by-exclusion>
+#             and ledger: <id> lines for what the walk passed through /
 #             heartbeat: <template, {iteration} = the counter>  (#<total_dispatches>)
-#   set       one dispatch block per due gate, in `gates` order, back to back;
-#             the passed-through skip: / round: / ledger: lines in the first
-#             block only. A set of one gate is a single dispatch block. A set
-#             re-dispatched after a refusal adds, among the first block's
-#             passed-through lines, refused: <gate> attempt <n> of 3: <reason>
-#             per gate in it
-#   wait      action: wait / node: <round> / recorded: <gate> <outcome>, or
-#             for a refused file refused: <gate> attempt <n> of 3: <reason> /
-#             pending: <gate> per gate still out, in `gates` order; a gate
-#             marked for re-dispatch is not out
 #   binding   action: binding / binding: <name> / node: / then
 #             <ask>               agent: / resume: <node>
-#             <escalate>          agent: (none when node: is a round node) /
-#                                 reason: <cap|error|blocker>, and for a cap:
-#                                 findings_file: per file of the closing round /
-#                                 rounds: <node> <its folder's FAIL files> (a
-#                                 node recorded `skipped` omitted) / evidence
-#                                 lines / summary: ({cap}; {open_gates} the
-#                                 closing round's FAIL gates, `, `-joined);
-#                                 at a join with a held outcome, node: and
-#                                 agent: are the first held gate's in `gates`
-#                                 order, reason: its outcome, then held: <gate>
-#                                 <outcome> per held gate, one refused: line
-#                                 per gate held by refusal, and no round: line
+#             <escalate>          agent: / reason: <cap|error|blocker>, and for
+#                                 a cap: findings_file: / rounds: <node> <count>
+#                                 (a node recorded `skipped` omitted) / evidence
+#                                 lines / summary:
 #             <terminal_handoff>  report: <key> <value> per recorded key
-#             then its skip: / round: / ledger: lines.
+#             then its skip: / ledger: lines.
 #
-# EXIT CODES — the command's, as `devscene-flow-host/README.md` → `## The
-# command line` gives them, plus this script's own refusals:
+# EXIT CODES
 #
-#   0  an action was printed; for check-round-file, the named round file is
-#      valid and nothing is printed
-#   1  refusal: a usage error; a step the walk refuses (an undeclared outcome,
-#      a gate not pending, a missing `--node`, a finished walk, an `--entry`
-#      outside the flow's entries, an unresolvable phase flag, no run-mode
-#      record); `next` or `current` with no saved walk (a re-entry's "no saved
-#      walk"); no `<this script's dir>/flows/<flow>.graph.json`
-#   2  a fault: not inside a git repository; a graph that does not load or
-#      declares another flow; a lock not acquired within 120 s; any other
-#      failure, `internal error: <type>: <message>` among them. This script's
-#      own: lib/harness-run-lib.sh predates this walker; the flow host's
-#      environment is not provisioned (HAND-OFF)
-#   3  check-round-file only: the named round file is invalid or absent. That
-#      command's usage refusals stay 1 and its faults 2
+#   0  an action was printed (and, for start / next, the state written)
+#   1  refusal: bad usage, undeclared outcome, `next` before `start`, `current`
+#      with no walk saved (a re-entry's "no saved walk"), a flow or
+#      branch other than the state's, unknown flow, formatVersion not 1, FAIL
+#      without --findings, no run-mode record, an unresolvable phase flag
+#   2  the configuration, the graph or the state file cannot be resolved or
+#      written, or lib/harness-run-lib.sh predates this walker
 #   Every non-zero exit prints one `flow-walker: <cause>` line on stderr and
-#   nothing on stdout. A fault after `start` or `next` saved the walk leaves it
-#   saved.
+#   leaves the state file byte-identical.
 #
-# HAND-OFF — what this script does, in order, and nothing else:
+# STATE — `<state_dir>/.flow_walker_state`, machine-local, flat `key=value`
+# lines: flow, branch, the pending node, `awaiting` (dispatch / answer / done),
+# `counter.<name>`, the prompt variants, the last findings file, the recorded
+# `report.<key>` values, the nodes skipped as `skipped`, and the pending
+# action's printed lines (`out=`), which `current` re-prints unchanged. Only
+# `start` overwrites it and resets every counter to 0 — a fresh write, an
+# extend, a review of a draft and a skip past a loop alike. A re-entry that
+# continues a saved walk (`current`, then `next` or a re-dispatch of the
+# printed action) keeps it, so `counter.iteration`, the prompt variants and
+# the last findings file survive a session boundary. It is a position, never a
+# phase record: the flow-progress ledger stays the only durable record.
+# Replaced by temp file and `mv`.
 #
-#   1. Sources lib/harness-run-lib.sh from beside itself. Every layout name
-#      below comes from that library's declared mirror (THE FLOW HOST'S
-#      ENVIRONMENT, its six `HR_FLOW_HOST_*` names); this script spells none.
-#      A library that cannot be sourced, defines no `hr_repo_root` or
-#      `hr_state_dir`, or leaves one of the six names unset or empty predates
-#      this walker: exit 2, for every verb.
-#   2. For `start`, `next` and `current`: deletes
-#      `<root>/<stateDir>/.flow_walker_state` when it is a regular file and not
-#      a symbolic link — the bash walker's flat state, which would stand where
-#      the command keeps its per-branch directory — and prints nothing about
-#      it. When the root or `stateDir` does not resolve, deletes nothing and
-#      leaves the cause to the command.
-#   3. Refuses with exit 2, running nothing, when `uv` is not on PATH, the
-#      environment's marker file is absent, or its `bin/devscene-flow-walker`
-#      is not executable; the one stderr line names
-#      `bash <scripts_dir>/flow-host-provision.sh`, run outside the sandbox —
-#      the same remedy the provisioning line and `doctor`'s `flow-host` check
-#      print.
-#   4. Unsets `VIRTUAL_ENV`, then, with <py> = <this script's dir>/python:
+# BASH 3.2 AND JQ 1.5 ARE THE FLOORS: no associative array and no array-reading
+# builtin. The graph is flattened by one `jq` per call.
 #
-#        UV_PROJECT_ENVIRONMENT=<py>/.venv \
-#        PYTHONPATH=<py>/devscene-flow-host/src:<py>/graphscene/src \
-#        PYTHONDONTWRITEBYTECODE=1 \
-#        exec uv run --frozen --no-sync --no-cache --project <py>/devscene-flow-host \
-#          devscene-flow-walker <arguments> [--flows <this script's dir>/flows]
+# REPRO — one PASS-everywhere walk in a throwaway fixture:
 #
-#      `--flows` is appended for `start`, `next` and `current` only, because
-#      `check-round-file` refuses a flag it does not take; every other argument
-#      passes through unchanged, and the command's stdout, stderr and exit
-#      status are the caller's answer.
-#
-#   NO ENVIRONMENT VARIABLE CHOOSES WHAT RUNS. The environment, the project and
-#   every source path come from this script's own directory, never from the
-#   caller's environment, and an inherited `PYTHONPATH` is replaced: the
-#   watcher's planning driver runs this script outside the sandbox, and an
-#   unsandboxed script takes the path of every trust input from a location the
-#   session cannot write (`<state_dir>/lessons.md` → `## Trust checks`). Run
-#   from the main checkout, everything it executes sits under
-#   `<scripts_dir>/python/`, which the generated profile write-protects.
-#
-#   THE SHIPPED SOURCES LEAD `PYTHONPATH` because a run copy's environment is
-#   built from the main checkout's packages as non-editable wheels; putting
-#   the sources beside this script first makes the code that runs the code
-#   `init` shipped here. `PYTHONDONTWRITEBYTECODE=1` keeps Python from writing
-#   `__pycache__` beside those sources, which sit in a committed tree no
-#   ignore rule covers, so a unit commit's untracked listing would otherwise
-#   pick the bytecode up.
-#
-#   `--no-cache` IS ALWAYS PASSED because inside Claude Code's sandbox `uv`
-#   cannot initialise its cache and exits 2 without it; `--no-sync` builds
-#   nothing, so the cache is never needed.
-#
-#   THE WALK'S STATE, LOCKS AND RECORDS ARE THE COMMAND'S, under
-#   `<state_dir>/.flow_walker_state/` (`devscene-flow-host/README.md` →
-#   `## What it reads, answers and keeps`).
-#
-# REPRO — in a throwaway fixture, never in a checkout:
-#
-#   d=$(mktemp -d); git -C "$d" init -q -b feat_x; cd "$d"
-#   npx devscene init     # writes <scripts_dir>/ and, with uv, builds <scripts_dir>/python/.venv
-#   printf 'verdict: PASS\n' > p0.md
-#   bash <scripts_dir>/flow-walker.sh start --flow task_plan_writing --branch feat_x --skipped none
-#     -> exit 0, action: dispatch, node: plan_writer, prompt: initial, arg.iteration: 0
-#   mv <scripts_dir>/python/.venv <scripts_dir>/python/.venv.off
-#   bash <scripts_dir>/flow-walker.sh current --flow task_plan_writing --branch feat_x
-#     -> exit 2, nothing on stdout, stderr flow-walker: the flow host is not
-#        provisioned (...): run bash <scripts_dir>/flow-host-provision.sh outside the sandbox
-#   mv <scripts_dir>/python/.venv.off <scripts_dir>/python/.venv
-#   bash <scripts_dir>/flow-walker.sh check-round-file --findings absent.md
-#     -> exit 3, stderr flow-walker: absent.md: no single verdict line (no `--flows` error)
-#   bash <scripts_dir>/flow-walker.sh check-round-file --findings p0.md   -> exit 0, no output
-#   rm -rf <state_dir>/.flow_walker_state; printf 'flow=x\n' > <state_dir>/.flow_walker_state
-#   bash <scripts_dir>/flow-walker.sh current --flow task_plan_writing --branch feat_x
-#     -> exit 1, flow-walker: no walk in progress at <root>/<state_dir>/.flow_walker_state/feat_x.json: ...;
-#        the flat <state_dir>/.flow_walker_state is gone
+#   d=$(mktemp -d); git -C "$d" init -q -b feat_x
+#   printf '%s' '{"defaultBranch":"main","stateDir":"devscene/","phases":{"parity":true,"qa":true}}' > "$d/devscene.config.json"
+#   mkdir -p "$d/s/lib" "$d/s/flows"
+#   cp <scripts_dir>/flow-walker.sh "$d/s/"
+#   cp <scripts_dir>/lib/harness-run-lib.sh <scripts_dir>/lib/flow-walker-gates.sh "$d/s/lib/"
+#   cp <scripts_dir>/flows/task_plan_writing.graph.json "$d/s/flows/"
+#   cd "$d"
+#   bash s/flow-walker.sh start --flow task_plan_writing --branch feat_x --skipped none
+#     -> dispatch plan_writer, prompt: initial
+#   ... next --flow task_plan_writing --branch feat_x --outcome returned --skipped none
+#     -> dispatch business_parity_review, arg.iteration: 0
+#   ... next ... --outcome PASS --skipped none   -> architecture_review, arg.iteration: 0
+#   ... next ... --outcome PASS --skipped none   -> plan_review, arg.iteration: 0
+#   ... next ... --outcome PASS --skipped none   -> ledger: P1, ui_writer, prompt: initial
+#   ... next ... --outcome returned --skipped none -> ui_review
+#   ... next ... --outcome PASS --skipped none   -> binding: <terminal_handoff>,
+#                                                  four report: lines, ledger: P2
+#   ... next ... --outcome PASS   -> exit 1: the walk has finished
 
 set -uo pipefail
 
-fw_given="$(dirname "${BASH_SOURCE[0]}")"
-fw_dir="$(cd "$fw_given" && pwd)"
-fw_lib="$fw_dir/lib/harness-run-lib.sh"
+fw_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+for fw_lib in "$fw_dir/lib/harness-run-lib.sh" "$fw_dir/lib/flow-walker-gates.sh"; do
+  if [ ! -r "$fw_lib" ]; then
+    printf 'flow-walker: cannot read %s\n' "$fw_lib" >&2
+    exit 2
+  fi
+  # shellcheck source=/dev/null
+  . "$fw_lib"
+done
+# An older `init` keeps an existing lib/harness-run-lib.sh (create-if-absent), and one written
+# before this walker shipped lacks the phase reader every `skipped` gate calls.
+if ! declare -F hr_phase_enabled >/dev/null; then
+  printf 'flow-walker: %s predates this walker (it defines no hr_phase_enabled): delete that file and re-run devscene init, which writes the current copy\n' "$fw_dir/lib/harness-run-lib.sh" >&2
+  exit 2
+fi
 
-fw_predates() {
-  printf 'flow-walker: %s predates this walker (%s): delete that file and re-run devscene init, which writes the current copy\n' "$fw_lib" "$1" >&2
+NL='
+'
+TAB=$'\t'
+
+refuse() {
+  printf 'flow-walker: %s\n' "$1" >&2
+  exit 1
+}
+
+fault() {
+  printf 'flow-walker: %s\n' "$1" >&2
   exit 2
 }
 
-# shellcheck source=/dev/null
-{ [ -r "$fw_lib" ] && . "$fw_lib"; } || fw_predates "it cannot be sourced"
-for fw_fn in hr_repo_root hr_state_dir; do
-  declare -F "$fw_fn" >/dev/null || fw_predates "it defines no $fw_fn"
-done
-for fw_name in HR_FLOW_HOST_DIRNAME HR_FLOW_HOST_PROJECT HR_FLOW_HOST_GRAPHSCENE \
-  HR_FLOW_HOST_ENV_DIRNAME HR_FLOW_HOST_SOURCE_DIRNAME HR_FLOW_HOST_ENV_MARKER; do
-  [ -n "${!fw_name-}" ] || fw_predates "it sets no $fw_name"
+# Every lookup below sets a global rather than printing, because `refuse` and
+# `fault` inside a `$(…)` would exit the subshell only.
+
+# --- Arguments ------------------------------------------------------------
+
+[ "$#" -gt 0 ] || refuse "missing subcommand: start, next or current"
+CMD="$1"
+shift
+case "$CMD" in
+  start|next|current) ;;
+  *) refuse "unknown subcommand '$CMD': expected start, next or current" ;;
+esac
+
+A_FLOW=""
+A_BRANCH=""
+A_ENTRY=""
+A_SKIPPED=""
+A_OUTCOME=""
+A_FINDINGS=""
+while [ "$#" -gt 0 ]; do
+  flag="$1"
+  case "$CMD:$flag" in
+    *:--flow|*:--branch|start:--entry|start:--skipped|next:--skipped|next:--outcome|next:--findings) ;;
+    *) refuse "'$flag' is not a flag of '$CMD'" ;;
+  esac
+  [ "$#" -ge 2 ] || refuse "$flag requires a value"
+  value="$2"
+  shift 2
+  case "$value" in
+    *"$NL"*) refuse "the value of $flag carries a newline" ;;
+  esac
+  case "$flag" in
+    --flow) A_FLOW="$value" ;;
+    --branch) A_BRANCH="$value" ;;
+    --entry) A_ENTRY="$value" ;;
+    --skipped) A_SKIPPED="$value" ;;
+    --outcome) A_OUTCOME="$value" ;;
+    --findings) A_FINDINGS="$value" ;;
+  esac
 done
 
-fw_py="$fw_dir/$HR_FLOW_HOST_DIRNAME"
-fw_env="$fw_py/$HR_FLOW_HOST_ENV_DIRNAME"
-fw_project="$fw_py/$HR_FLOW_HOST_PROJECT"
-fw_sources="$fw_project/$HR_FLOW_HOST_SOURCE_DIRNAME:$fw_py/$HR_FLOW_HOST_GRAPHSCENE/$HR_FLOW_HOST_SOURCE_DIRNAME"
+[ -n "$A_FLOW" ] || refuse "missing required flag --flow"
+[ -n "$A_BRANCH" ] || refuse "missing required flag --branch"
+if [ "$CMD" = next ]; then
+  [ -n "$A_OUTCOME" ] || refuse "missing required flag --outcome"
+  case "$A_OUTCOME" in
+    *[!A-Za-z0-9_]*) refuse "outcome '$A_OUTCOME' is not an outcome name" ;;
+  esac
+  if [ "$A_OUTCOME" = FAIL ] && [ -z "$A_FINDINGS" ]; then
+    refuse "outcome FAIL requires --findings with the reviewer's findings_file"
+  fi
+fi
+case "$A_FLOW" in
+  *[!a-z0-9_]*) refuse "unknown flow '$A_FLOW'" ;;
+esac
 
-fw_flows=()
-case "${1-}" in
-  start|next|current)
-    fw_flows=(--flows "$fw_dir/flows")
-    if fw_root="$(hr_repo_root)" && fw_state_dir="$(hr_state_dir "$fw_root")"; then
-      fw_flat="$fw_root/$fw_state_dir/.flow_walker_state"
-      if [ -f "$fw_flat" ] && [ ! -L "$fw_flat" ]; then
-        rm -f "$fw_flat"
-      fi
+# --- Configuration ----------------------------------------------------------
+
+ROOT="$(hr_repo_root)" || fault "not inside a git repository"
+hr_config_load "$ROOT"
+case "$?" in
+  0) ;;
+  1) fault "no devscene.config.json at $ROOT" ;;
+  *) fault "cannot resolve $ROOT/devscene.config.json (invalid JSON, no defaultBranch, or jq missing or older than 1.5)" ;;
+esac
+STATE_DIR="$(hr_state_dir "$ROOT")" || fault "cannot resolve stateDir from $ROOT/devscene.config.json"
+STATE_FILE="$ROOT/$STATE_DIR/.flow_walker_state"
+
+# --- The graph --------------------------------------------------------------
+
+GRAPH_FILE="$fw_dir/flows/$A_FLOW.graph.json"
+[ -f "$GRAPH_FILE" ] || refuse "unknown flow '$A_FLOW': no $GRAPH_FILE"
+hr_have_jq || fault "jq is not on PATH"
+
+# One line per scalar: `<dotted path>\t<value>`, array indices as path segments.
+G_RAW="$(jq -r 'paths(scalars) as $p | [($p | map(tostring) | join(".")), (getpath($p) | tostring)] | @tsv' "$GRAPH_FILE" 2>/dev/null)" \
+  || fault "cannot parse $GRAPH_FILE"
+G_LINES="$NL$G_RAW$NL"
+
+# Set GV to the graph value at <path>; return 1 when absent.
+g_get() {
+  local key="$1" rest
+  GV=""
+  case "$G_LINES" in
+    *"$NL$key$TAB"*) ;;
+    *) return 1 ;;
+  esac
+  rest="${G_LINES#*"$NL$key$TAB"}"
+  rest="${rest%%"$NL"*}"
+  hr_tsv_unescape_var "$rest"
+  GV="$HR_CFG_VALUE"
+  return 0
+}
+
+g_need() {
+  g_get "$1" || fault "graph $GRAPH_FILE has no '$1'"
+}
+
+g_has_prefix() {
+  case "$G_LINES" in
+    *"$NL$1"*) return 0 ;;
+  esac
+  return 1
+}
+
+g_get formatVersion || refuse "graph $GRAPH_FILE carries no formatVersion"
+[ "$GV" = 1 ] || refuse "graph $GRAPH_FILE has formatVersion '$GV'; this walker reads 1"
+g_need flow
+[ "$GV" = "$A_FLOW" ] || fault "graph $GRAPH_FILE declares flow '$GV', not '$A_FLOW'"
+
+# --- The state store (newline-joined `key=value`) ----------------------------
+
+ST_LINES="$NL"
+OUT=""
+PASS=""
+
+st_get() {
+  local key="$1" rest
+  SV=""
+  case "$ST_LINES" in
+    *"$NL$key="*) ;;
+    *) return 1 ;;
+  esac
+  rest="${ST_LINES#*"$NL$key="}"
+  SV="${rest%%"$NL"*}"
+  return 0
+}
+
+st_set() {
+  local key="$1" val="$2" line out="$NL"
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    case "$line" in
+      "$key="*) continue ;;
+    esac
+    out="$out$line$NL"
+  done <<EOF
+$ST_LINES
+EOF
+  ST_LINES="$out$key=$val$NL"
+}
+
+load_state() {
+  local line
+  [ -f "$STATE_FILE" ] || refuse "no walk in progress at $STATE_FILE: run 'start' first"
+  [ -r "$STATE_FILE" ] || fault "cannot read $STATE_FILE"
+  while IFS= read -r line; do
+    case "$line" in
+      out=*) OUT="$OUT${line#out=}$NL" ;;
+      *=*) ST_LINES="$ST_LINES$line$NL" ;;
+    esac
+  done < "$STATE_FILE"
+  st_get flow || fault "$STATE_FILE carries no flow"
+  [ "$SV" = "$A_FLOW" ] || refuse "the walk in progress is flow '$SV', not '$A_FLOW'"
+  st_get branch || fault "$STATE_FILE carries no branch"
+  [ "$SV" = "$A_BRANCH" ] || refuse "the walk in progress is for branch '$SV', not '$A_BRANCH'"
+  [ -n "$OUT" ] || fault "$STATE_FILE carries no pending action"
+}
+
+save_state() {
+  local dir tmp line
+  dir="${STATE_FILE%/*}"
+  [ -d "$dir" ] || mkdir -p "$dir" || fault "cannot create $dir"
+  tmp="$STATE_FILE.tmp.$$"
+  {
+    printf '%s' "${ST_LINES#"$NL"}"
+    while IFS= read -r line; do
+      if [ -n "$line" ]; then printf 'out=%s\n' "$line"; fi
+    done <<EOF
+$OUT
+EOF
+  } > "$tmp" 2>/dev/null || { rm -f "$tmp"; fault "cannot write $tmp"; }
+  mv -f "$tmp" "$STATE_FILE" 2>/dev/null || { rm -f "$tmp"; fault "cannot replace $STATE_FILE"; }
+}
+
+# --- Rendering helpers ------------------------------------------------------
+
+# SUBST = <string> with every literal <pattern> replaced by <replacement>.
+subst() {
+  local s="$1" pat="$2" rep="$3" out=""
+  while :; do
+    case "$s" in
+      *"$pat"*)
+        out="$out${s%%"$pat"*}$rep"
+        s="${s#*"$pat"}"
+        ;;
+      *) break ;;
+    esac
+  done
+  SUBST="$out$s"
+}
+
+# SUBST = <template> with {state_dir} and {branch} rendered, repo-relative.
+render_path() {
+  subst "$1" "{state_dir}" "$STATE_DIR"
+  subst "$SUBST" "{branch}" "$A_BRANCH"
+}
+
+record_reports() {
+  local prefix="$1.report." line key
+  while IFS= read -r line; do
+    case "$line" in
+      "$prefix"*)
+        key="${line#"$prefix"}"
+        key="${key%%"$TAB"*}"
+        hr_tsv_unescape_var "${line#*"$TAB"}"
+        st_set "report.$key" "$HR_CFG_VALUE"
+        ;;
+    esac
+  done <<EOF
+$G_LINES
+EOF
+}
+
+add_skipped_node() {
+  st_get skipped_nodes
+  fw_id_in_list "$1" "$SV" && return 0
+  if [ -n "$SV" ]; then st_set skipped_nodes "$SV,$1"; else st_set skipped_nodes "$1"; fi
+}
+
+render_dispatch() {
+  local node="$1" variant="$2" agent idx hb
+  g_need "nodes.$node.agent"
+  agent="$GV"
+  OUT="action: dispatch${NL}node: $node${NL}agent: $agent$NL"
+  st_set node "$node"
+  st_set awaiting dispatch
+  st_set resume ""
+  st_set prompt ""
+  if g_get "nodes.$node.prompts.0"; then
+    [ -n "$variant" ] || variant=initial
+    case "$variant" in
+      initial|revision) ;;
+      *) fault "graph gives '$node' the unknown prompt variant '$variant'" ;;
+    esac
+    OUT="${OUT}prompt: $variant$NL"
+    st_set prompt "$variant"
+    st_set "prompt.$node" "$variant"
+    if [ "$variant" = revision ]; then
+      st_get findings_file
+      [ -n "$SV" ] || fault "a revision of '$node' is due and no findings file is recorded"
+      OUT="${OUT}arg.findings_file: $SV$NL"
     fi
+  fi
+  if g_get "nodes.$node.findingsFolder"; then
+    render_path "$GV"
+    idx="$(fw_next_review_index "$ROOT/$SUBST")"
+    OUT="${OUT}arg.iteration: $idx$NL"
+  fi
+  OUT="$OUT$PASS"
+  g_need "nodes.$node.heartbeat"
+  st_get counter.iteration
+  subst "$GV" "{iteration}" "$SV"
+  hb="$SUBST"
+  OUT="${OUT}heartbeat: $hb  (#<total_dispatches>)$NL"
+}
+
+render_terminal() {
+  local node="$1" i=0 key
+  g_need "nodes.$node.binding"
+  OUT="action: binding${NL}binding: $GV${NL}node: $node$NL"
+  while g_get "reports.$i"; do
+    key="$GV"
+    if st_get "report.$key"; then
+      OUT="${OUT}report: $key $SV$NL"
+    fi
+    i=$((i + 1))
+  done
+  OUT="$OUT$PASS"
+  st_set node "$node"
+  st_set awaiting done
+}
+
+# Print the binding at graph path <prefix> reached from <node>. <cap> is the
+# cap that fired, for a cap escalation.
+take_binding() {
+  local prefix="$1" node="$2" cap="${3-}" binding agent reason i=0 r count ev
+  g_need "$prefix.binding"
+  binding="$GV"
+  g_need "nodes.$node.agent"
+  agent="$GV"
+  OUT="action: binding${NL}binding: $binding${NL}node: $node${NL}agent: $agent$NL"
+  st_set node "$node"
+  case "$binding" in
+    "<ask>")
+      g_need "$prefix.resume"
+      OUT="${OUT}resume: $GV$NL"
+      st_set resume "$GV"
+      st_set awaiting answer
+      ;;
+    "<escalate>")
+      g_need "$prefix.reason"
+      reason="$GV"
+      OUT="${OUT}reason: $reason$NL"
+      if [ "$reason" = cap ]; then
+        st_get findings_file
+        OUT="${OUT}findings_file: $SV$NL"
+        st_get skipped_nodes
+        local skipped="$SV"
+        while g_get "$prefix.roundCounts.$i"; do
+          r="$GV"
+          i=$((i + 1))
+          fw_id_in_list "$r" "$skipped" && continue
+          g_need "nodes.$r.findingsFolder"
+          render_path "$GV"
+          count="$(fw_round_count "$ROOT/$SUBST")"
+          OUT="${OUT}rounds: $r $count$NL"
+        done
+        if g_get "$prefix.evidence"; then
+          g_need "paths.$GV"
+          render_path "$GV"
+          ev="$(fw_index_evidence "$ROOT/$SUBST")"
+          [ -z "$ev" ] || OUT="$OUT$ev$NL"
+        fi
+        if g_get "$prefix.summary"; then
+          subst "$GV" "{cap}" "$cap"
+          OUT="${OUT}summary: $SUBST$NL"
+        fi
+      fi
+      st_set awaiting done
+      ;;
+    *) fault "graph binding '$binding' at '$prefix' is not <ask> or <escalate>" ;;
+  esac
+  OUT="$OUT$PASS"
+}
+
+# --- Transitions ------------------------------------------------------------
+
+# Move to <node>, passing its skip gates, and render what is reached.
+arrive() {
+  local node="$1" variant="$2" steps=0 i applied construct phase id list status
+  while :; do
+    steps=$((steps + 1))
+    [ "$steps" -le 64 ] || fault "graph loops through skip gates at '$node'"
+    g_get "nodes.$node.kind" || fault "graph has no node '$node'"
+    case "$GV" in
+      terminal)
+        render_terminal "$node"
+        return 0
+        ;;
+      dispatch) ;;
+      *) fault "node '$node' has unknown kind '$GV'" ;;
+    esac
+    applied=""
+    i=0
+    while [ -z "$applied" ] && g_get "nodes.$node.skip.$i.construct"; do
+      construct="$GV"
+      case "$construct" in
+        skipped)
+          g_need "nodes.$node.skip.$i.phase"
+          phase="$GV"
+          fw_phase_on "$ROOT" "$phase"
+          status=$?
+          case "$status" in
+            0) ;;
+            1) applied=skipped ;;
+            *) refuse "cannot resolve phases.$phase in $ROOT/devscene.config.json" ;;
+          esac
+          ;;
+        passedByExclusion)
+          g_need "nodes.$node.skip.$i.runModeId"
+          id="$GV"
+          list="$(fw_run_mode_skipped "$ROOT" "$STATE_DIR" "$A_BRANCH" "$A_SKIPPED")"
+          status=$?
+          case "$status" in
+            0) if fw_id_in_list "$id" "$list"; then applied=passed-by-exclusion; fi ;;
+            1) refuse "no run-mode record: no flow-progress ledger for '$A_BRANCH' and no --skipped" ;;
+            *) refuse "the flow-progress ledger for '$A_BRANCH' has no '- skipped:' line under '## Run mode'" ;;
+          esac
+          ;;
+        *) fault "node '$node' has unknown skip construct '$construct'" ;;
+      esac
+      [ -n "$applied" ] || i=$((i + 1))
+    done
+    if [ -z "$applied" ]; then
+      render_dispatch "$node" "$variant"
+      return 0
+    fi
+    record_reports "nodes.$node.skip.$i"
+    PASS="${PASS}skip: $node $applied$NL"
+    [ "$applied" != skipped ] || add_skipped_node "$node"
+    g_need "nodes.$node.skip.$i.to"
+    node="$GV"
+  done
+}
+
+follow_edge() {
+  local edge="$1" node="$2" counter cap n variant=initial
+  if g_get "$edge.binding"; then
+    take_binding "$edge" "$node"
+    return 0
+  fi
+  if g_get "$edge.reset"; then
+    st_set "counter.$GV" 0
+  fi
+  if g_get "$edge.increment"; then
+    counter="$GV"
+    st_get "counter.$counter"
+    case "$SV" in
+      ''|*[!0-9]*) fault "$STATE_FILE carries no numeric counter.$counter" ;;
+    esac
+    n=$((SV + 1))
+    st_set "counter.$counter" "$n"
+    g_need "counters.$counter.cap"
+    cap="$GV"
+    if [ "$n" -ge "$cap" ]; then
+      g_get "$edge.onCap.binding" || fault "edge '$edge' reaches its cap with no onCap"
+      take_binding "$edge.onCap" "$node" "$cap"
+      return 0
+    fi
+  fi
+  record_reports "$edge"
+  if g_get "$edge.ledger"; then
+    PASS="${PASS}ledger: $GV$NL"
+  fi
+  if g_get "$edge.prompt"; then variant="$GV"; fi
+  g_need "$edge.to"
+  arrive "$GV" "$variant"
+}
+
+# --- Subcommands ------------------------------------------------------------
+
+case "$CMD" in
+  start)
+    g_need start
+    entry="$GV"
+    if [ -n "$A_ENTRY" ]; then
+      i=0
+      found=1
+      while g_get "entries.$i"; do
+        if [ "$GV" = "$A_ENTRY" ]; then found=0; fi
+        i=$((i + 1))
+      done
+      [ "$found" -eq 0 ] || refuse "'$A_ENTRY' is not an entry of flow '$A_FLOW'"
+      entry="$A_ENTRY"
+    fi
+    st_set flow "$A_FLOW"
+    st_set branch "$A_BRANCH"
+    while IFS= read -r line; do
+      case "$line" in
+        counters.*.cap"$TAB"*)
+          name="${line#counters.}"
+          name="${name%%.cap"$TAB"*}"
+          st_set "counter.$name" 0
+          ;;
+      esac
+    done <<EOF
+$G_LINES
+EOF
+    st_set findings_file ""
+    st_set skipped_nodes ""
+    arrive "$entry" initial
+    save_state
+    ;;
+  next)
+    load_state
+    st_get node
+    node="$SV"
+    st_get awaiting
+    case "$SV" in
+      done)
+        refuse "the walk finished at '$node'; no outcome is pending (run 'start' to walk again)"
+        ;;
+      answer)
+        [ "$A_OUTCOME" = answered ] \
+          || refuse "outcome '$A_OUTCOME' is not declared while an <ask> is pending at '$node'; only 'answered' is"
+        [ -z "$A_FINDINGS" ] || st_set findings_file "$A_FINDINGS"
+        st_get resume
+        resume="$SV"
+        [ -n "$resume" ] || fault "$STATE_FILE carries no resume node"
+        st_get "prompt.$resume"
+        arrive "$resume" "$SV"
+        ;;
+      dispatch)
+        g_has_prefix "nodes.$node.outcomes.$A_OUTCOME." \
+          || refuse "outcome '$A_OUTCOME' is not declared by node '$node'"
+        [ -z "$A_FINDINGS" ] || st_set findings_file "$A_FINDINGS"
+        follow_edge "nodes.$node.outcomes.$A_OUTCOME" "$node"
+        ;;
+      *)
+        fault "$STATE_FILE carries an unknown awaiting value '$SV'"
+        ;;
+    esac
+    save_state
+    ;;
+  current)
+    load_state
     ;;
 esac
 
-fw_missing=""
-if ! command -v uv >/dev/null 2>&1; then
-  fw_missing="uv is not on PATH"
-elif [ ! -f "$fw_env/$HR_FLOW_HOST_ENV_MARKER" ]; then
-  fw_missing="no environment at $fw_env"
-elif [ ! -x "$fw_env/bin/devscene-flow-walker" ]; then
-  fw_missing="$fw_env has no devscene-flow-walker"
-fi
-if [ -n "$fw_missing" ]; then
-  printf 'flow-walker: the flow host is not provisioned (%s): run bash %s/flow-host-provision.sh outside the sandbox\n' "$fw_missing" "$fw_given" >&2
-  exit 2
-fi
-
-unset VIRTUAL_ENV
-UV_PROJECT_ENVIRONMENT="$fw_env" PYTHONPATH="$fw_sources" PYTHONDONTWRITEBYTECODE=1 \
-  exec uv run --frozen --no-sync --no-cache --project "$fw_project" \
-  devscene-flow-walker "$@" ${fw_flows[@]+"${fw_flows[@]}"}
+printf '%s' "$OUT"
+exit 0

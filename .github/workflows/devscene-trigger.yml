@@ -5,8 +5,8 @@
 # `forge` is `github` and its `execution.target` is `github-actions`. Written
 # create-if-absent: from then on it is yours to tune, and a re-run of `init`
 # keeps your copy. `init --upgrade-workflows` does NOT re-render it: it carries
-# no CLI version pin and calls the scripts on the default branch. Its own route
-# is `init --force`, which replaces it after a `.bak`.
+# no CLI version pin and calls the scripts on the default branch, so it shares
+# their re-run contract — `init --force` replaces it after a `.bak`.
 #
 # WHAT IT DOES. One job runs `remote-run.sh trigger`, which does everything
 # else: it authorises the start, derives the branch, places and commits the task

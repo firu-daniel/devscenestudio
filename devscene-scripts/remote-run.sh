@@ -506,7 +506,7 @@
 #   - finding <K> is implemented when the index carries the literal
 #     `[x] **Finding <K>**`, and its fix commit is the oldest commit on
 #     `origin/<branch>` that introduced that literal into the index (`git log
-#     --reverse -S`), else origin's tip — the commit step flips the entry in the
+#     --reverse -S`), else origin's tip — the committer flips the entry in the
 #     fix's own commit.
 # Then one `completed` comment
 # on the pull request, its readiness clause by the flip's outcome, and one on
@@ -940,13 +940,7 @@
 # bundle's `planning/` drafts at their paths under the state directory, never
 # over a file the checkout already has, and when it placed or kept any prints
 # `placed <n> planning file(s) for <branch>; kept <n> the checkout already
-# carries`. Once the checkout tracks the story index, the task-plan drafts are
-# withheld rather than placed, since each round's end commits them, and
-# `restore` prints `withheld <n> planning file(s) for <branch>; the checkout
-# tracks its story index, so the committed round stands`; when a withheld draft
-# is missing from or differs from the committed round, the saved walk is
-# withheld too and `restore` prints `withheld the saved walk for <branch>; a
-# bundled draft differs from the committed round`. Every path it writes — the download directory, the answers, the
+# carries`. Every path it writes — the download directory, the answers, the
 # park-loop clear — is under the same state directory `hr_remote_bundle_restore`
 # places the bundle in, resolved as `save`'s is below. Then, under --resume
 # answer, it
@@ -1513,10 +1507,10 @@
 #
 #   restore and save run in the job's checkout; with that same "a bundle" stub
 #   (the bundle also carrying clarifications/feat_x/question_1.md and
-#   flow_walker_state/feat_x.json, the branch's walk) and GITHUB_RUN_ID set to another id:
+#   flow_walker_state) and GITHUB_RUN_ID set to another id:
 #   restore    bash scripts/remote-run.sh restore feat_x --resume none   -> 0; the
 #              checkout carries clarifications/feat_x/question_1.md,
-#              .flow_walker_state/feat_x.json and autonomous_logs/remote_status.json, and
+#              .flow_walker_state and autonomous_logs/remote_status.json, and
 #              places the bundle's planning/ drafts where the checkout has none
 #   answer     HARNESS_INPUT_ANSWERS='{"1":"Use B.\n"}' ... --resume answer -> 0;
 #              clarifications/feat_x/answer_1.md holds exactly `Use B.` + newline
@@ -1541,7 +1535,7 @@
 #              branch-resume; sync -> the record is paused / expired; status
 #              -> prints the expired line, "$r" byte-identical
 #   save       bash scripts/remote-run.sh save feat_x /tmp/b -> 0; /tmp/b holds
-#              status.json, clarifications/feat_x/, flow_walker_state/ with the branch's walk files (and
+#              status.json, clarifications/feat_x/, flow_walker_state (and
 #              PAUSE_PROGRESS.md, run.log, planning/ when present); with
 #              GITHUB_STEP_SUMMARY=/tmp/s, /tmp/s gains the status table
 #   never started  no remote_status.json and no registry: save -> 0, /tmp/b
@@ -3076,8 +3070,6 @@ verb_restore() {
         echo "remote-run.sh: restored the bundle of run $id into $root"
         [ $((HR_REMOTE_PLANNING_PLACED + HR_REMOTE_PLANNING_KEPT)) -eq 0 ] \
           || echo "remote-run.sh: placed $HR_REMOTE_PLANNING_PLACED planning file(s) for $branch; kept $HR_REMOTE_PLANNING_KEPT the checkout already carries"
-        [ "$HR_REMOTE_PLANNING_WITHHELD" -eq 0 ] || echo "remote-run.sh: withheld $HR_REMOTE_PLANNING_WITHHELD planning file(s) for $branch; the checkout tracks its story index, so the committed round stands"
-        [ "$HR_REMOTE_WALKER_WITHHELD" -eq 0 ] || echo "remote-run.sh: withheld the saved walk for $branch; a bundled draft differs from the committed round"
         ;;
       2) restore_refuse "the bundle in '$download' is unrecognised for $branch; nothing restored" ;;
       *) restore_fail "restoring '$download' into '$root' failed" ;;

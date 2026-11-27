@@ -38,8 +38,6 @@ playwright-report/
 # worktree carries none - and a remote job's own `init` generates its own. A copy an earlier release
 # committed stays tracked despite this rule until it is untracked by hand - `doctor` reports that state.
 .claude/settings.autonomous.json
-# One machine's additions to that profile. It is never committed.
-.claude/settings.autonomous.local.json
 # The presence-only marker one user's "don't ask again" answer writes to silence the change-request
 # offer. It lives at the main worktree's root and is checked there from every worktree of this
 # checkout, so one answer covers them all - its existence is the whole signal, so it has no
@@ -64,10 +62,6 @@ devscene/PAUSE
 devscene/RESUME
 devscene/PAUSE_ACK
 devscene/PAUSE_PROGRESS.md
-# The flow walker's Python environment. It is per checkout - flow-host-provision.sh builds it in the
-# main checkout and each bootstrap builds one in the working copy it sets up - and it records this
-# machine's absolute paths, so it is never committed.
-devscene-scripts/python/.venv/
 # The questions a parked run asks and the answers it is given are machine-local, while the
 # directory's README is the committed contract for the exchange - so the contents are ignored and
 # that one file is excepted, exactly as for the log directory above. A question sits one level

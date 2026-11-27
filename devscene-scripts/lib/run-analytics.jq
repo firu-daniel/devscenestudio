@@ -16,32 +16,24 @@
 # jq keyword as a $ variable, . field or object key (jq 1.7 accepts one, jq 1.6
 # does not), and every `if` has an `else`.
 #
-# EVERY MODE TAKES EVERY VARIABLE: $mode, $idle_threshold_s, $known, $nodes,
-# $redact, $suspend, $suspend_source. jq resolves every $name the program
-# references at compile time, not when the branch holding it runs, so a call
-# omitting one aborts with `$<name> is not defined` whatever its mode — sessions,
-# overlay, transcripts, attach, rounds or gate_logs. Each mode ignores the ones it
-# does not use; pass those as the neutral values shown (`--argjson nodes '[]'`).
-# A variable may be bound by --slurpfile as well as by --arg / --argjson: modes
+# EVERY MODE TAKES EVERY VARIABLE: $mode, $idle_threshold_s, $known, $redact,
+# $suspend, $suspend_source. jq resolves every $name the program references at
+# compile time, not when the branch holding it runs, so a call omitting one
+# aborts with `$<name> is not defined` whatever its mode — sessions, overlay,
+# transcripts, attach, rounds or gate_logs. Each mode ignores the ones it does not
+# use; pass those as the neutral values shown. The variable set is unchanged, and a
+# variable may be bound by --slurpfile as well as by --arg / --argjson: modes
 # `rounds` and `gate_logs` bind $known that way, as the recorded rounds or gate-log
-# array wrapped in a one-element array, not session ids, and mode `sessions` may
-# bind $nodes that way. Every other mode keeps --argjson known.
+# array wrapped in a one-element array, not session ids. Every other mode keeps
+# --argjson known.
 #
 # Mode `sessions`:
 #   jq -n -R -c -S -f run-analytics.jq --arg mode sessions
 #      --argjson idle_threshold_s <int> --argjson known '<["<session_id>", …]>'
-#      --slurpfile nodes <file holding [{"session_id", "node"}, …]> (or
-#      --argjson nodes '[]')
 #      --argjson redact '<[["<from>", "<to>"], …]>' --argjson suspend '[]'
 #      --arg suspend_source none < <stream file>
 #   One pass over `inputs | fromjson?`: a non-JSON or truncated line is skipped.
 #   Output: one JSON array of NEW session records, oldest first.
-#   - kind and node: a record whose session_id (a resume's `#<N>` stripped)
-#     is the session_id of a $nodes[0] entry is kind "planning_node", node that
-#     entry's node (`<seq>-<node>`, the first entry wins); every other record is
-#     kind "engine", node null. The entries are the planning driver's node-session
-#     manifest, as run-analytics.sh reads it; a session is never classed from its
-#     timing.
 #   - A session is the run of events from one system/init event to the next;
 #     events before the first init are dropped.
 #   - session_id is the init event's session_id; a resume reuses that id, so its
@@ -215,22 +207,14 @@
 #
 # Session record, of modes sessions, overlay and attach (top-level keys exactly these):
 #   session_id, complete, first_at, last_at  (ISO timestamps, verbatim)
-#   kind: "engine" | "planning_node", node: "<seq>-<node>" | null  (mode
-#     `sessions` → kind and node). A record written before schema 4 lacks both
-#     keys and is an engine session.
 #   time: {wall_ms, duration_ms, duration_api_ms, host_suspended_ms, idle_ms,
-#          active_ms, subagent_wall_ms, idle_threshold_s, suspend_source,
+#          active_ms, idle_threshold_s, suspend_source,
 #          idle_gaps: [{start_at, length_ms, context, class}]}
 #     host_suspended_ms = max(0, wall_ms - duration_ms); duration_ms is the result
 #     event's monotonic clock, which excludes suspend. active_ms = wall - idle.
-#     subagent_wall_ms: the length of the union of the dispatch intervals
-#     [start, start + duration_ms] over subagents[] with a numeric duration_ms,
-#     null when none has one; dispatches sent together overlap and count once. A
-#     record written before this field lacks the key.
 #     A gap is consecutive timestamped events, any context, further apart than
 #     idle_threshold_s. Class at its start: in_flight_request (some context's last
-#     event is a user event or the init, with no assistant event after it
-#     and no dispatch it opened still running; context
+#     event is a user event or the init, with no assistant event after it; context
 #     = the most recently active such) > tool_running (an open tool call; context
 #     = the latest-started's) > unknown (context = the last event's).
 #   requests: {items: [{started_at, context, message_id, latency_ms, output_tokens,
@@ -257,9 +241,7 @@
 #     agent_id: the dispatch's transcript id, from the closing tool_result's
 #     tool_use_result.agentId or a system task_* event's task_id; never redacted.
 #     token_source and the four token fields are null here (mode attach fills them).
-#     requests is counted from the stream. duration_ms is the dispatch's own
-#     tool_use-to-tool_result span and wall_share is it over wall_ms, so
-#     overlapping dispatches' wall_share values may sum past 1.
+#     requests is counted from the stream.
 #   cost: {total_cost_usd, by_model, token_source, input_tokens, output_tokens,
 #          cache_read_tokens, cache_write_tokens, cache_hit_ratio, thinking_tokens,
 #          cache_write_5m_tokens, cache_write_1h_tokens}
@@ -468,7 +450,7 @@ def add_call($u; $ck; $t; $at):
     | if $u.name == "Agent" or $u.name == "Task" then
         .dispatch[$u.id] = {type: ($u.input.subagent_type // "subagent"),
                             description: ($u.input.description // null | redact),
-                            start_t: $st, started_at: $sat, agent_id: null, parent: $ck}
+                            start_t: $st, started_at: $sat, agent_id: null}
         | .dispatch_order += [$u.id]
       else . end
   end;
@@ -527,10 +509,7 @@ def on_user($e; $t; $ck):
                               command: ($c.raw_command | redact_text)} + $nf]
              end
          end)
-  # A context still blocked on a dispatch it opened has no request in flight.
-  | .dispatch as $d
-  | if ([.open | keys[] | $d[.] | select(. != null and .parent == $ck)] | length) == 0
-    then .ctx[$ck].awaiting = true else . end;
+  | .ctx[$ck].awaiting = true;
 
 def finalize:
   .result as $r
@@ -538,16 +517,6 @@ def finalize:
   | ([.gaps[].length_ms] | add // 0) as $idle
   | (reduce (($r.permission_denials // [])[] | .tool_use_id | strings) as $id
        (.denied; .[$id] = true)) as $den
-  | ([.dispatch_order[] as $id | .dispatch[$id].start_t as $s | .calls[$id].duration_ms as $d
-      | select(($s | type) == "number" and ($d | type) == "number") | [$s, $s + $d]]
-     | if length == 0 then null
-       else sort_by(.[0])
-         | reduce .[] as $iv ({total: 0, hi: null};
-             if .hi == null or $iv[0] > .hi then .total += ($iv[1] - $iv[0]) | .hi = $iv[1]
-             elif $iv[1] > .hi then .total += ($iv[1] - .hi) | .hi = $iv[1]
-             else . end)
-         | .total
-       end) as $sa_union
   | [.reqs[] | del(._parent)] as $ri
   | (.reqs | group_by(._parent) | map({key: .[0]._parent, value: .}) | from_entries) as $byp
   | [.corder[] as $id | .calls[$id]
@@ -561,10 +530,7 @@ def finalize:
        max_ms: (if $n == 0 then null else $l[-1] end),
        over_threshold: ([$l[] | select(. > ($idle_threshold_s * 1000))] | length)};
     def durs: [.[] | .duration_ms | numbers];
-  (.node_of[.key | split("#")[0]]) as $node
-  | {session_id: .key,
-   kind: (if $node == null then "engine" else "planning_node" end),
-   node: $node,
+  {session_id: .key,
    complete: ($r != null),
    first_at: .at_min,
    last_at: .at_max,
@@ -575,7 +541,6 @@ def finalize:
                               then ([0, $wall - $r.duration_ms] | max) else null end),
           idle_ms: $idle,
           active_ms: (if $wall != null then $wall - $idle else null end),
-          subagent_wall_ms: $sa_union,
           idle_threshold_s: $idle_threshold_s,
           suspend_source: "none",
           idle_gaps: .gaps},
@@ -960,11 +925,7 @@ def gate_logs:
 if $mode == "sessions" then
   reduce (inputs | fromjson? | select(type == "object")) as $e
     ({out: [], emitted: {}, seen: {}, active: false,
-      known: (reduce ($known[]? | strings) as $k ({}; .[$k] = true)),
-      node_of: (reduce ($nodes[0]? | if type == "array" then .[] else empty end
-                        | select(type == "object" and (.session_id | type) == "string"
-                                 and (.node | type) == "string")) as $n
-                  ({}; if has($n.session_id) then . else .[$n.session_id] = $n.node end))};
+      known: (reduce ($known[]? | strings) as $k ({}; .[$k] = true))};
      step($e))
   | close_current(false)
   | .out

@@ -63,17 +63,6 @@
 # entries reach the mode through a file (`--slurpfile known`), as the rounds do.
 # A failure on this path is one stderr line and never stops the sessions.
 #
-# NODE SESSIONS. The planning driver appends each planning node session's
-# stream to the run's stream file, so that file holds engine and node sessions
-# alike. Which is which comes only from the driver's manifest,
-# `${stream%.stream.jsonl}.planning/node-sessions.jsonl` — one
-# `{"session_id", "seq", "node"}` line per reaped node session, written by
-# `lib/planning-node-lib.sh` → `pnl_reap` — read when it is a regular,
-# non-symlink file and the stream's name ends `.stream.jsonl`. A line that is
-# not such an object is skipped. Its entries reach mode `sessions` as
-# `--slurpfile nodes`, each node as `<seq>-<node>`; without the file every new
-# session is an engine session. A manifest jq cannot read is an exit 1.
-#
 # WHERE IT STOPS. It writes those two files in the named checkout and nothing
 # else: it commits nothing, pushes nothing, notifies nothing and never touches
 # the stream. It reads the agent runner's sub-agent transcripts, never writes
@@ -86,15 +75,14 @@
 # `<label>#<N>`. A recorded gate-log entry is never rewritten either: new
 # entries are appended in the order mode `gate_logs` returns them. Then `.run`
 # and the Markdown are regenerated from the whole document every time, so a
-# hand-deleted `.md` comes back. Every document written is schema 4: a
-# `rounds` and a `gate_logs` array, each possibly empty, beside `sessions`,
-# whose new records carry `kind` and `node`. An existing schema-1, schema-2 or
-# schema-3 document is read and extended to schema 4; its records keep their
-# bytes, carry no `kind`, and count as engine sessions. An existing
-# `run-analytics.json` that does not parse as one schema-1 document with
-# neither `rounds` nor `gate_logs`, one schema-2 document without `gate_logs`
-# whose `rounds` is an array of objects with a string `round_id`, or one
-# schema-3 or schema-4 document whose `rounds` is such an array and whose
+# hand-deleted `.md` comes back. A document is schema 3 exactly when it carries
+# a gate-log entry, with `gate_logs` and a `rounds` array (possibly empty)
+# beside it; otherwise, when it carries a round, schema 2; otherwise schema
+# 1. An existing schema-1 or schema-2 document is read and extended. An
+# existing `run-analytics.json` that does not parse as one schema-1 document
+# with neither `rounds` nor `gate_logs`, one schema-2 document without
+# `gate_logs` whose `rounds` is an array of objects with a string `round_id`,
+# or one schema-3 document whose `rounds` is such an array and whose
 # `gate_logs` is an array of objects with a string `log_id`, is refused and
 # left byte-for-byte as it is — it is the only copy of
 # the sessions it holds. A file is replaced only when its bytes differ, and
@@ -175,17 +163,13 @@
 #   round      no record yet; l=$d/devscene/test_run_logs/feat_x; mkdir -p "$l"
 #              printf 'pass\n' > "$l/r_round_1.verdict"
 #              printf 'phase\tgate\tstatus\tseconds\nfull\ttest\tok\t3\nend\tcomplete\n' > "$l/r_round_1.gates.tsv"
-#              same call -> `recorded 1 session(s) and 1 round(s) for feat_x`, one round
+#              same call -> `recorded 1 session(s) and 1 round(s) for feat_x`, schema 2
 #   running    as `round` without the .verdict      -> `recorded 1 session(s) for feat_x`,
-#              rounds []; write the .verdict, same call -> `recorded 0 session(s) and 1 round(s) for feat_x`
+#              schema 1; write the .verdict, same call -> `recorded 0 session(s) and 1 round(s) for feat_x`
 #   gate log   no record yet; l as in `round`; mkdir -p "$l"
 #              printf 'Error: connect ECONNREFUSED 127.0.0.1:443\n' > "$l/r_round_1.log"
 #              printf 'pass\n' > "$l/r_round_1.verdict"
-#              same call -> `recorded 1 session(s) for feat_x`, one `connect` match
-#   node       no record yet; mkdir "$d/s.planning"
-#              printf '%s\n' '{"session_id":"s1","seq":"1","node":"plan_review"}' > "$d/s.planning/node-sessions.jsonl"
-#              mv "$d/s.jsonl" "$d/s.stream.jsonl"; the call over s.stream.jsonl
-#                -> session s1 is kind `planning_node`, node `1-plan_review`
+#              same call -> `recorded 1 session(s) for feat_x`, schema 3, one `connect` match
 
 # Deliberately no `-e`: every failure below is an explicit exit with its line.
 set -uo pipefail
@@ -348,33 +332,21 @@ if [ -e "$json_out" ]; then
             length == 1 and (.[0] | type == "object"
             and ((.schema == 1 and (has("rounds") | not) and (has("gate_logs") | not))
                  or (.schema == 2 and (has("gate_logs") | not) and rounds_ok)
-                 or ((.schema == 3 or .schema == 4) and rounds_ok and (.gate_logs | type) == "array"
+                 or (.schema == 3 and rounds_ok and (.gate_logs | type) == "array"
                      and all(.gate_logs[]; type == "object" and (.log_id | type) == "string")))
             and (.sessions | type) == "array"
             and all(.sessions[]; type == "object" and (.session_id | type) == "string"))' \
     "$json_out" >/dev/null 2>&1 \
-    || die "'$json_out' is not a schema-1, schema-2, schema-3 or schema-4 run-analytics document; left untouched"
+    || die "'$json_out' is not a schema-1, schema-2 or schema-3 run-analytics document; left untouched"
   cp "$json_out" "$work/old.json" || die "cannot read '$json_out'"
 else
   printf '%s\n' '{"schema":1,"sessions":[]}' > "$work/old.json" || die "cannot write the working copy"
 fi
 known=$(jq -c '[.sessions[].session_id]' "$work/old.json") || die "cannot read the recorded session ids"
 
-# The node-session manifest (NODE SESSIONS above); `[]` when there is none.
-manifest="${stream%.stream.jsonl}.planning/node-sessions.jsonl"
-if [ "$manifest" != "$stream.planning/node-sessions.jsonl" ] && [ -f "$manifest" ] && [ ! -L "$manifest" ]; then
-  jq -R -s -c '[split("\n")[] | fromjson? | objects
-                | select((.session_id | type) == "string" and (.node | type) == "string")
-                | {session_id, node: (((.seq // "") | tostring) + "-" + .node)}]' \
-    < "$manifest" > "$work/nodes.json" 2> "$work/err" \
-    || die "cannot read the node-session manifest '$manifest'"
-else
-  printf '%s\n' '[]' > "$work/nodes.json" || die "cannot write the working copy"
-fi
-
 if ! jq -n -R -c -S -f "$sessions_jq" --arg mode sessions --argjson idle_threshold_s "$idle" \
-     --argjson known "$known" --slurpfile nodes "$work/nodes.json" --argjson redact "$redact" \
-     --argjson suspend '[]' --arg suspend_source none < "$stream" > "$work/new.json" 2> "$work/err"; then
+     --argjson known "$known" --argjson redact "$redact" --argjson suspend '[]' \
+     --arg suspend_source none < "$stream" > "$work/new.json" 2> "$work/err"; then
   IFS= read -r why < "$work/err" || why=""
   die "lib/run-analytics.jq failed over '$stream': ${why:-no message}"
 fi
@@ -424,7 +396,7 @@ if [ -z "$rounds_err" ] && [ -s "$work/rounds.jsonl" ]; then
     IFS= read -r why < "$work/err" || why=""
     rounds_err="${why:-cannot write the recorded rounds}"
   elif ! jq -n -R -c -S -f "$sessions_jq" --arg mode rounds --argjson idle_threshold_s 1 \
-       --slurpfile known "$work/known_rounds.json" --argjson nodes '[]' --argjson redact "$redact" --argjson suspend '[]' \
+       --slurpfile known "$work/known_rounds.json" --argjson redact "$redact" --argjson suspend '[]' \
        --arg suspend_source none < "$work/rounds.jsonl" > "$work/rounds_out.json" 2> "$work/err"; then
     IFS= read -r why < "$work/err" || why=""
     rounds_err="${why:-lib/run-analytics.jq rounds failed}"
@@ -449,7 +421,7 @@ if [ -z "$gate_logs_err" ] && [ -s "$work/gate_logs.jsonl" ]; then
     IFS= read -r why < "$work/err" || why=""
     gate_logs_err="${why:-cannot write the recorded gate logs}"
   elif ! jq -n -R -c -S -f "$sessions_jq" --arg mode gate_logs --slurpfile known "$work/known_gate_logs.json" \
-       --argjson idle_threshold_s 1 --argjson nodes '[]' --argjson redact "$redact" --argjson suspend '[]' \
+       --argjson idle_threshold_s 1 --argjson redact "$redact" --argjson suspend '[]' \
        --arg suspend_source none < "$work/gate_logs.jsonl" > "$work/gate_logs_out.json" 2> "$work/err"; then
     IFS= read -r why < "$work/err" || why=""
     gate_logs_err="${why:-lib/run-analytics.jq gate_logs failed}"
@@ -498,7 +470,7 @@ $pairs
 EOF
   if [ -s "$work/transcripts.jsonl" ]; then
     if ! jq -n -R -c -S -f "$sessions_jq" --arg mode transcripts --argjson idle_threshold_s "$idle" \
-         --argjson known '[]' --argjson nodes '[]' --argjson redact '[]' --argjson suspend '[]' \
+         --argjson known '[]' --argjson redact '[]' --argjson suspend '[]' \
          --arg suspend_source none < "$work/transcripts.jsonl" > "$work/transcripts.json" 2> "$work/err"; then
       IFS= read -r why < "$work/err" || why=""
       die "lib/run-analytics.jq transcripts failed: ${why:-no message}"
@@ -507,7 +479,7 @@ EOF
       '{records: $r[0], transcripts: $t[0]}' > "$work/attach_in.json" 2> "$work/err" \
       || die "cannot build the attach input"
     if ! jq -c -S -f "$sessions_jq" --arg mode attach --argjson idle_threshold_s "$idle" \
-         --argjson known '[]' --argjson nodes '[]' --argjson redact '[]' --argjson suspend '[]' \
+         --argjson known '[]' --argjson redact '[]' --argjson suspend '[]' \
          --arg suspend_source none < "$work/attach_in.json" > "$work/attached.json" 2> "$work/err"; then
       IFS= read -r why < "$work/err" || why=""
       die "lib/run-analytics.jq attach failed: ${why:-no message}"
@@ -599,7 +571,7 @@ fi
 
 if [ "$src" != "none" ]; then
   if ! jq -c -S -f "$sessions_jq" --arg mode overlay --argjson idle_threshold_s "$idle" \
-       --argjson known '[]' --argjson nodes '[]' --argjson redact '[]' --argjson suspend "$intervals" \
+       --argjson known '[]' --argjson redact '[]' --argjson suspend "$intervals" \
        --arg suspend_source "$src" < "$work/new.json" > "$work/overlaid.json" 2> "$work/err"; then
     IFS= read -r why < "$work/err" || why=""
     die "lib/run-analytics.jq overlay failed: ${why:-no message}"
@@ -614,8 +586,10 @@ jq -n -S --arg branch "$branch" --slurpfile old "$work/old.json" --slurpfile new
   --slurpfile r "$rounds_file" --slurpfile gl "$gate_logs_file" \
   '(($old[0].rounds // []) + ($r[0].rounds // [])) as $rounds
    | (($old[0].gate_logs // []) + ($gl[0].gate_logs // [])) as $gate_logs
-   | {schema: 4, branch: $branch, sessions: ($old[0].sessions + $new[0]), run: null,
-      rounds: $rounds, gate_logs: $gate_logs}' \
+   | {schema: 1, branch: $branch, sessions: ($old[0].sessions + $new[0]), run: null}
+   | if ($gate_logs | length) > 0 then .schema = 3 | .gate_logs = $gate_logs | .rounds = $rounds
+     elif ($rounds | length) > 0 then .schema = 2 | .rounds = $rounds
+     else . end' \
   > "$work/merged.json" 2> "$work/err" || die "cannot merge the new sessions"
 if ! jq -S -f "$report_jq" --arg mode rollup < "$work/merged.json" > "$work/doc.json" 2> "$work/err"; then
   IFS= read -r why < "$work/err" || why=""

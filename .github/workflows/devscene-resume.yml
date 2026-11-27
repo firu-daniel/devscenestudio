@@ -93,7 +93,7 @@
 # 2.327.1 or newer; a GitHub-hosted runner already
 # has it, and a self-hosted one must run it (docs/remote-execution.md, section
 # 8). A sha, not a tag: a tag is mutable, and this job holds write tokens. A pin
-# moves when `npx devscene@latest init --upgrade-workflows`
+# moves when `npx devscene@<version> init --upgrade-workflows`
 # re-renders this file at a newer release's pins; a hand bump replaces the sha
 # and its comment line together. The version stays on its own line, never
 # trailing the `uses:` value: a value carrying ` #` is never a plain scalar.

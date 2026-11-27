@@ -4,8 +4,6 @@
 # `devscene.config.json` at run time, answers "is this branch protected?",
 # routes an inbox filename to its engine and branch (`hr_inbox_route_var`) and
 # judges whether that branch may be taken in (`hr_inbox_branch_refusal_var`),
-# answers the clarification channel's highest question index and its top-level
-# answered pairs (`hr_max_question_index`, `hr_top_level_answered_pairs`),
 # derives a branch name from a title (`hr_derive_branch`), judges whether a
 # path lies strictly inside the state directory's scratch directory
 # (`hr_scratch_path_var`), answers whether the progress comment is on
@@ -23,15 +21,11 @@
 # answers whether a launch holds the host awake (`hr_keep_awake`,
 # `hr_keep_awake_probe_var`, `hr_keep_awake_mode_var`), whether it is on mains
 # power (`hr_on_mains_power`) and starts that hold (`hr_keep_awake_hold_var`),
-# answers whether a launch takes the script-driven planning pilot
-# (`hr_script_driven_planning`) and where the runtime loads the plugin from
-# (`hr_plugin_runtime_root_var`),
 # owns the Run gates lane for `run-test-suite.sh`,
 # `launch-sandboxed-gates.sh` and `run-analytics.sh` — its layout
 # (`hr_test_run_lane_dir`), label
 # pattern and staleness bound (`HR_TEST_RUN_*`) and heartbeat reader
-# (`hr_heartbeat_age`) — syncs the flow walker's Python environment
-# (`hr_flow_host_provision`), places a dropped
+# (`hr_heartbeat_age`) — places a dropped
 # artifact in a working copy and commits and pushes it, and derives the
 # anchors (main checkout, work root, worktree directory, repo slug,
 # state-dir paths) the scripts would otherwise each re-derive slightly
@@ -152,10 +146,9 @@
 #   3. THE REMOTE STATE BUNDLE writes the files its format lists. Fence: inside
 #      `<root>/<state_dir>/` (resolved through `hr_remote_state_dir_var`), only
 #      `autonomous_logs/remote_status.json`, `clarifications/<branch>/`,
-#      `PAUSE_PROGRESS.md`, the branch's `<enc>.json` files under
-#      `.flow_walker_state/` with their parent directories, the move-aside directory
+#      `PAUSE_PROGRESS.md`, `.flow_walker_state`, the move-aside directory
 #      `autonomous_logs/remote_superseded/` and, only where nothing exists yet,
-#      files under the nine planning paths `hr_remote_planning_paths` assigns;
+#      files under the eight planning paths `hr_remote_planning_paths` assigns;
 #      outside it, only the caller-named `<out_dir>` (its `planning/` included)
 #      of `hr_remote_bundle_write`, the caller-named `<dst>` of
 #      `hr_remote_copy_tree` (which `hr_remote_bundle_write` names under
@@ -244,11 +237,6 @@
 #      replaces (removed by its writer on a failed step). Nothing else there is
 #      ever removed. Written only by `hr_push_refusal_record` and
 #      `hr_push_refusal_handled`.
-#   8. THE FLOW HOST'S ENVIRONMENT has `uv` sync one environment. Fence: in a
-#      repository, only `<env_scripts_dir>/python/.venv`, the
-#      `UV_PROJECT_ENVIRONMENT` the call names; outside every repository,
-#      whatever `uv` writes to its own cache. Written only by
-#      `hr_flow_host_provision`.
 #
 # MIRRORS OF `cli/src/remote/githubActions.ts`, which owns these names; a
 # rename there is an edit here, byte for byte:
@@ -300,19 +288,6 @@
 # All three are held equal to their owners by
 # `cli/test/sandbox-prerequisites-shell-mirror.test.mjs`.
 #
-# MIRROR OF `cli/src/flowHost/layout.ts` → `FLOW_HOST_DIRNAME`,
-# `FLOW_HOST_PROJECT`, `FLOW_HOST_PACKAGES` (its `graphscene` entry),
-# `FLOW_HOST_ENV_DIRNAME` and `FLOW_HOST_SOURCE_DIRNAME`, and of
-# `cli/src/flowHost/provision.ts` → `ENV_MARKER_FILE`; the six `HR_FLOW_HOST_*`
-# names listed in the section THE FLOW HOST'S ENVIRONMENT spell them, for
-# `hr_flow_host_provision` and `flow-walker.sh`, and
-# `cli/test/flow-host-provision.test.mjs` holds them equal.
-#
-# MIRROR OF `devscene-flow-host/src/devscene_flow_host/host/store.py` →
-# `walk_state_path`'s branch encoding; `hr_walk_state_name` is its shell
-# mirror, and `cli/test/remote-run.test.mjs`'s bundle round trip holds them
-# equal.
-#
 # MIRROR OF `cli/src/config/model.ts` → `SANDBOX_PASS_ENV_PATTERN`;
 # `hr_session_pass_env`'s element filter (`^[A-Za-z_][A-Za-z0-9_]*$`) is its
 # shell mirror, so a change to the owner is an edit here.
@@ -327,7 +302,7 @@
 # `hr_run_trusted_base_var`, `hr_run_surface_check_var` (through it), `hr_run_main_git`,
 # `hr_run_copy_git`, `hr_copy_git_at`, `hr_copy_sync_in_var`, `hr_copy_sync_out_var`,
 # `hr_copy_ref_swap_var`, `hr_registry_drop`, `hr_registry_restore`, `hr_clone_create_var`,
-# `hr_push_refusal_record`, `hr_push_refusal_handled`, `hr_flow_host_provision` or
+# `hr_push_refusal_record`, `hr_push_refusal_handled` or
 # `hr_clone_remove_var` function
 # still gets a library that only reads. The
 # lane's ceilings are the only environment values here that carry policy, because
@@ -337,9 +312,8 @@
 # `RUNNER_TEMP` are also read, as location anchors only, and `PATH` is read by
 # `hr_path_with_fallbacks` alone — as that function's input, which it prints back
 # transformed and never assigns — beside the `command -v` of
-# `hr_sandbox_prereq_probe_var`, `hr_keep_awake_probe_var`,
-# `hr_keep_awake_hold_var` and `hr_flow_host_provision`, which resolves against
-# it and never assigns it.
+# `hr_sandbox_prereq_probe_var`, `hr_keep_awake_probe_var` and
+# `hr_keep_awake_hold_var`, which resolves against it and never assigns it.
 # `GITHUB_ACTIONS` is read by `hr_keep_awake_mode_var` alone, to take no hold on
 # a runner, and `HR_POWER_SUPPLY_DIR` by `hr_on_mains_power` alone, as a test
 # seam no shipped script sets. `GITHUB_RUN_ID`, `GITHUB_SERVER_URL`,
@@ -450,8 +424,6 @@
 # log is the only place the skip can be seen. `hr_run_fast_forward_var` and
 # `hr_run_reset_var` leave the stderr of their writing git calls (`read-tree`,
 # `update-ref`) to the caller too, and so does `hr_commit_paths_var`.
-# `hr_flow_host_provision` prints its one outcome line and passes `uv`'s output
-# to stderr, because its callers relay both to a person.
 # That silence is why the lane reports a lock it BROKE through a
 # variable instead of a log line — the caller owns the log.
 #
@@ -470,8 +442,7 @@
 # `HR_LANE_OWNER_AT` and `HR_LANE_BROKEN_OWNER`, and the remote state bundle's
 # names, which `hr_remote_names_var` assigns, with `HR_REMOTE_PLANNING_PATHS`
 # (`hr_remote_planning_paths`) and `HR_REMOTE_PLANNING_PLACED` /
-# `HR_REMOTE_PLANNING_KEPT` / `HR_REMOTE_PLANNING_WITHHELD` /
-# `HR_REMOTE_WALKER_WITHHELD` (`hr_remote_bundle_restore`), `HR_REMOTE_ASIDE`
+# `HR_REMOTE_PLANNING_KEPT` (`hr_remote_bundle_restore`), `HR_REMOTE_ASIDE`
 # (`hr_remote_move_aside`), `HR_REMOTE_STATE_DIR`, `HR_REMOTE_STATE_FROM`
 # and `HR_REMOTE_STATE_CHECKOUT`
 # (`hr_remote_state_dir_var`) and `HR_REMOTE_LINKED`
@@ -497,8 +468,8 @@
 # and `HR_CREDENTIAL_HIT_FORM` (`hr_text_has_credential`,
 # `hr_stream_has_credential`), the push-refusal record's
 # `HR_PUSH_REFUSAL_FILES` and `HR_PUSH_REFUSAL_REASON`
-# (`hr_push_refusals_for_var`), and `HR_REMOTE_WORKFLOWS_DIR` and the flow
-# host's six `HR_FLOW_HOST_*` layout names (assigned at source time).
+# (`hr_push_refusals_for_var`), and `HR_REMOTE_WORKFLOWS_DIR` (assigned at
+# source time).
 # Every one of them is assigned
 # before it is read by the function that owns it, so an inherited value from a
 # parent process is overwritten rather than believed — except
@@ -1940,12 +1911,11 @@ hr_config_load() {
   # reads as the name `true`, and drops one carrying a newline, which
   # `hr_cfg_list_var`'s newline-joined value would split into two names.
   #
-  # A `phases.*`, `docs.retrieval`, `execution.progressComments`,
-  # `execution.keepAwake` or `execution.scriptDrivenPlanning` value that is not a
-  # boolean is emitted as `invalid`, so the string `"true"` — which `tostring`
-  # would otherwise make indistinguishable from `true` — reaches
-  # `hr_phase_enabled`, `hr_docs_retrieval_applies`, `hr_progress_comments`,
-  # `hr_keep_awake` or `hr_script_driven_planning` as a value it refuses (2).
+  # A `phases.*`, `docs.retrieval`, `execution.progressComments` or
+  # `execution.keepAwake` value that is not a boolean is emitted as `invalid`, so
+  # the string `"true"` — which `tostring` would otherwise make indistinguishable
+  # from `true` — reaches `hr_phase_enabled`, `hr_docs_retrieval_applies`,
+  # `hr_progress_comments` or `hr_keep_awake` as a value it refuses (2).
   #
   # `sandbox.optedOut` is a computed flag rather than the raw `reason`, because
   # `s()` drops `"null"` and `""` and the string `"null"` is a taken opt-out. Its
@@ -1989,8 +1959,6 @@ hr_config_load() {
         try (.execution.progressComments | if type == "boolean" or . == null then . else "invalid" end) catch null),
       s("execution.keepAwake";
         try (.execution.keepAwake | if type == "boolean" or . == null then . else "invalid" end) catch null),
-      s("execution.scriptDrivenPlanning";
-        try (.execution.scriptDrivenPlanning | if type == "boolean" or . == null then . else "invalid" end) catch null),
       s("docs.retrievalBackend"; try .docs.retrievalBackend catch null),
       s("docs.retrieval";        try (.docs.retrieval | if type == "boolean" or . == null then . else "invalid" end) catch null),
       s("forge";                 try .forge                catch null),
@@ -2319,99 +2287,6 @@ hr_keep_awake() {
     false) return 1 ;;
   esac
   return 2
-}
-
-# `execution.scriptDrivenPlanning` — whether a launch of the task engine takes
-# the script-driven planning pilot, in local and job mode alike. THE ONE READER
-# OF THE KEY IN THIS FAMILY, and the shell mirror of `cli/src/config/model.ts`
-# → `scriptDrivenPlanningEnabled`. PRINTS NOTHING: 0 = `true`; 1 = `false` or
-# absent (the schema default); 2 = the configuration is unresolvable or the
-# value is not a boolean. The watcher passes the MAIN checkout — in a job, the
-# job's own checkout — never a run copy, whose `devscene.config.json` a session
-# can rewrite.
-hr_script_driven_planning() {
-  local root="${1-}"
-  hr_config_load "$root" || return 2
-  hr_cfg_scalar_var "execution.scriptDrivenPlanning" || return 1
-  case "$HR_CFG_VALUE" in
-    true) return 0 ;;
-    false) return 1 ;;
-  esac
-  return 2
-}
-
-# ---------------------------------------------------------------------------
-# The plugin's runtime root: the read-only shell mirror of
-# `cli/src/machine/plugins.ts` → `pluginRuntimeRoot` (with its fallback,
-# `pluginInstallRoot`), over the same two agent-runner records under
-# `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/`. Change the selection there
-# and here together. Re-derived on every call and never cached: the install
-# root carries the plugin version.
-# ---------------------------------------------------------------------------
-
-# The plugin's identity in the runner's records — mirrors of
-# `cli/src/core/pluginIdentity.ts` → `PLUGIN_NAME` and
-# `cli/src/generators/projectSettings.ts` → `MARKETPLACE_NAME` and `PLUGIN_KEY`.
-HR_PLUGIN_NAME="devscene"
-HR_PLUGIN_MARKETPLACE="devscene"
-HR_PLUGIN_KEY="$HR_PLUGIN_NAME@$HR_PLUGIN_MARKETPLACE"
-
-# hr_plugin_runtime_root_var [<repo_root>] — set `HR_PLUGIN_RUNTIME_ROOT` to the
-# directory the runtime loads this harness's plugin from, and return 0; 1, with
-# it empty, when neither record yields one. A `directory`-sourced marketplace
-# gives `<installLocation>/<the manifest's plugin source>`; anything else falls
-# back to `installed_plugins.json`'s row: the `project` row whose `projectPath`
-# is <repo_root>, else the `user` row, else the first usable one. Reads only;
-# every unreadable, unparsable or unnavigable record is the fallback, never a
-# fault.
-hr_plugin_runtime_root_var() {
-  local repo="${1-}" home="${CLAUDE_CONFIG_DIR-}" location relative value
-  HR_PLUGIN_RUNTIME_ROOT=""
-  if [ -z "$home" ]; then
-    [ -n "${HOME-}" ] || return 1
-    home="$HOME/.claude"
-  fi
-  home="${home%/}"
-
-  location=$(jq -r --arg m "$HR_PLUGIN_MARKETPLACE" '
-    if type == "object" then (.[$m] // null) else null end
-    | if type == "object" and (.source | type) == "object" and .source.source == "directory"
-         and (.installLocation | type) == "string" and .installLocation != ""
-      then .installLocation else empty end' "$home/plugins/known_marketplaces.json" 2>/dev/null) || location=""
-  if [ -n "$location" ]; then
-    relative=$(jq -r --arg n "$HR_PLUGIN_NAME" '
-      if type == "object" and (.plugins | type) == "array" then
-        [.plugins[] | select(type == "object" and .name == $n)][0] // null
-      else null end
-      | if type == "object" and (.source | type) == "string" and .source != "" then .source else empty end' \
-      "$location/.claude-plugin/marketplace.json" 2>/dev/null) || relative=""
-    if [ -n "$relative" ]; then
-      while :; do
-        case "$relative" in
-          ./*) relative="${relative#./}" ;;
-          *) break ;;
-        esac
-      done
-      relative="${relative%/}"
-      case "$relative" in
-        '' | .) HR_PLUGIN_RUNTIME_ROOT="${location%/}" ;;
-        *) HR_PLUGIN_RUNTIME_ROOT="${location%/}/$relative" ;;
-      esac
-      return 0
-    fi
-  fi
-
-  value=$(jq -r --arg k "$HR_PLUGIN_KEY" --arg repo "$repo" '
-    (if type == "object" and (.plugins | type) == "object" then (.plugins[$k] // null) else null end)
-    | (if type == "array" then
-         [.[] | select(type == "object" and (.installPath | type) == "string" and .installPath != "")]
-       else [] end) as $rows
-    | ([$rows[] | select($repo != "" and .scope == "project" and .projectPath == $repo)]
-       + [$rows[] | select(.scope == "user")] + $rows)
-    | if length > 0 then .[0].installPath else empty end' "$home/plugins/installed_plugins.json" 2>/dev/null) || value=""
-  [ -n "$value" ] || return 1
-  HR_PLUGIN_RUNTIME_ROOT="$value"
-  return 0
 }
 
 # ---------------------------------------------------------------------------
@@ -3158,62 +3033,6 @@ hr_inbox_branch_refusal_var() {
     *) HR_INBOX_REFUSAL="whether '$branch' is protected cannot be judged: the protected set in '$root/devscene.config.json' cannot be resolved" ;;
   esac
   return 1
-}
-
-# ---------------------------------------------------------------------------
-# The clarification channel's index answers — one definition each.
-# ---------------------------------------------------------------------------
-
-# hr_max_question_index <clar_dir>
-#
-# The highest numbered question_<n>.md index under <clar_dir>, top level and
-# answered/ together, or 0 when there is none. Numeric-only names, as the
-# resume and the exit classification accept. Prints the integer and nothing else,
-# because every caller captures it: the watcher's park-loop guard, park resume
-# and exit classification, and the planning record library.
-hr_max_question_index() {
-  local clar_dir="$1" q n max=0
-  for q in "$clar_dir"/question_*.md "$clar_dir"/answered/question_*.md; do
-    [ -e "$q" ] || continue
-    n="${q##*/}"
-    n="${n#question_}"
-    n="${n%.md}"
-    case "$n" in
-      '' | *[!0-9]*) continue ;;
-    esac
-    # Base 10 forced, so a zero-padded index is not read as octal.
-    if [ "$((10#$n))" -gt "$max" ]; then
-      max="$((10#$n))"
-    fi
-  done
-  printf '%s\n' "$max"
-}
-
-# hr_top_level_answered_pairs <clar_dir>
-#
-# Every top-level index with both files, space-separated and numerically sorted,
-# whether or not another top-level question is still unanswered; prints nothing
-# when there is none. The watcher's spawn_engine records it at every launch, and
-# the planning driver filters it. Each
-# index is printed as its file name spells it, because archive_answered_pair
-# rebuilds the file names from it; `sort -n` orders a zero-padded one in base 10.
-hr_top_level_answered_pairs() {
-  local clar_dir="$1" q n answered_list="" answered_set
-  for q in "$clar_dir"/question_*.md; do
-    [ -e "$q" ] || continue
-    n="${q##*/}"
-    n="${n#question_}"
-    n="${n%.md}"
-    case "$n" in
-      '' | *[!0-9]*) continue ;;
-    esac
-    [ -f "$clar_dir/answer_${n}.md" ] || continue
-    answered_list="${answered_list}${n}
-"
-  done
-  [ -n "$answered_list" ] || return 0
-  answered_set="$(printf '%s' "$answered_list" | sort -n | tr '\n' ' ')"
-  printf '%s\n' "${answered_set% }"
 }
 
 # ---------------------------------------------------------------------------
@@ -4977,13 +4796,10 @@ hr_copy_sync_main_git() {
 # one-branch-one-checkout rule gives a worktree), a branch <main> lacks, a
 # heal whose compare-and-swap fails, and a diverged clone. 0 synced, healed or
 # a no-op (main or worktree, `HR_SYNC_TIP` empty); 1 with `HR_SYNC_REFUSAL`
-# set to one sentence naming the branch and the failed step. The diverged
-# sentence also names the cause, read from the tips' first parents and trees,
-# and both full ids in two `update-ref` repair commands it spells and never runs.
+# set to one sentence naming the branch and the failed step.
 hr_copy_sync_in_var() {
   local main="${1-}" gitdir="${2-}" branch="${3-}" kind cmain clone ref
   local up out line oid="" count=0 cur main_old status tab=$'\t'
-  local c_parent m_parent c_tree m_tree cause worktree
   HR_SYNC_TIP=""
   HR_SYNC_REFUSAL=""
   kind=$(hr_copy_kind "$main" "$gitdir") || kind=""
@@ -5089,24 +4905,7 @@ EOF
             fi
             ;;
           1)
-            # A failed read leaves its value empty: the relation is then unknown, never a refusal of its own.
-            c_parent=$(hr_copy_sync_main_git "$cmain" rev-parse --verify --quiet "$oid^" 2>/dev/null) || c_parent=""
-            m_parent=$(hr_copy_sync_main_git "$cmain" rev-parse --verify --quiet "$main_old^" 2>/dev/null) || m_parent=""
-            c_tree=$(hr_copy_sync_main_git "$cmain" rev-parse --verify --quiet "$oid^{tree}" 2>/dev/null) || c_tree=""
-            m_tree=$(hr_copy_sync_main_git "$cmain" rev-parse --verify --quiet "$main_old^{tree}" 2>/dev/null) || m_tree=""
-            cause="one of them moved outside the wrappers"
-            worktree=" and bring the clone's index and working tree to that tip"
-            if [ -n "$c_parent" ] && [ "$c_parent" = "$m_parent" ]; then
-              if [ -n "$c_tree" ] && [ "$c_tree" = "$m_tree" ]; then
-                cause="the clone's tip rewrote the main checkout's outside the wrappers (same parent, same tree)"
-                worktree=""
-              elif [ -n "$c_tree" ] && [ -n "$m_tree" ]; then
-                cause="the clone's tip rewrote the main checkout's outside the wrappers (same parent, different tree)"
-              else
-                cause="the clone's tip rewrote the main checkout's outside the wrappers (same parent)"
-              fi
-            fi
-            HR_SYNC_REFUSAL="cannot sync branch '$branch' in from '$clone': the clone (${oid:0:12}) and the main checkout (${main_old:0:12}) have diverged — $cause; nothing was moved. To keep the clone's tip, run git -C '$cmain' update-ref $ref $oid $main_old; to keep the main checkout's, run git -C '$clone' update-ref $ref $main_old $oid$worktree. Then answer the park."
+            HR_SYNC_REFUSAL="cannot sync branch '$branch' in from '$clone': the clone (${oid:0:12}) and the main checkout (${main_old:0:12}) have diverged"
             return 1
             ;;
           *)
@@ -6226,11 +6025,8 @@ HR_REMOTE_WORKFLOWS_DIR='.github/workflows'
 #   <bundle>/status.json                 the job's record, fixed schema below
 #   <bundle>/clarifications/<branch>/    the whole branch directory, answered/ included
 #   <bundle>/PAUSE_PROGRESS.md           when present
-#   <bundle>/flow_walker_state/<path>    a DIRECTORY, <state_dir>/.flow_walker_state/ WITHOUT
-#                                          its dot: every regular file there, at any depth,
-#                                          named exactly `<enc>.json`, at the same relative
-#                                          path, where `<enc>` is `hr_walk_state_name <branch>`
-#   <bundle>/run.log                    <state_dir>/autonomous_logs/<branch>.log; never restored
+#   <bundle>/flow_walker_state           <state_dir>/.flow_walker_state, WITHOUT its dot
+#   <bundle>/run.log                     <state_dir>/autonomous_logs/<branch>.log; never restored
 #   <bundle>/planning/<path>             each of these under <state_dir>, when present:
 #                                          story_plans/<branch>_story_plan.md
 #                                          task_plans/<branch>
@@ -6239,27 +6035,18 @@ HR_REMOTE_WORKFLOWS_DIR='.github/workflows'
 #                                          task_plan_reviews/<branch>
 #                                          business_parity_reviews/<branch>
 #                                          architecture_reviews/<branch>
-#                                          plan_revisions/<branch>
 #                                          ui_test_plan_reviews/<branch>
 #
 # The walker state loses its dot because `actions/upload-artifact` skips hidden
-# files by default. Its set is the branch's walk and the branch's records the
-# host keeps in subdirectories; no subdirectory is named here, so a record the
-# host adds travels without an edit. A `.lock` file and another branch's files
-# never match the name, and are never carried. THE BUNDLE ITSELF IS NEVER COMMITTED. Every file outside
+# files by default. THE BUNDLE ITSELF IS NEVER COMMITTED. Every file outside
 # `planning/` is gitignored machine-local state, and the remote-status and
 # move-aside paths sit under `autonomous_logs/`, whose ignore rule already
-# covers them. The task-plan loop's files under `planning/` are committed and
-# pushed at each round's end and on a planning pause, so the bundle's copy of
-# them matters only before the first round commit, and a job restore withholds
-# it once the story index is tracked (`hr_remote_bundle_restore`). The UI-test-plan
-# loop's files stay untracked until its convergence; for them the bundle is
-# still the only carrier.
+# covers them. The files under `planning/` are untracked drafts that the flow
+# commits itself at its P1/P3 convergence; the bundle only carries them.
 #
 # THE PLANNING PATHS ARE A MIRROR of the contracts that write and stage them:
 # `plugin/instructions/task_plan_writing_instructions_autonomous.md` →
-# `## Override 3` and `## Override 4` staging lists and
-# `## Override 6 — commit each plan-review round`'s per-round staging list, and
+# `## Override 3` and `## Override 4` staging lists, and
 # `<scripts_dir>/flows/task_plan_writing.graph.json` → each node's `findingsFolder`. A path
 # added there is an edit to `hr_remote_planning_paths`. Only planning is
 # carried because the walker's one graph is `task_plan_writing.graph.json`;
@@ -6272,12 +6059,9 @@ HR_REMOTE_WORKFLOWS_DIR='.github/workflows'
 # local registry), `continue` / `poll` (the decision, `chain`, the reset time)
 # and the next job's seed. The clarification directory and `PAUSE_PROGRESS.md`:
 # the next job, and the user's local mirror. The walker state: the next job
-# only, each file placed back at its relative path under
-# `<state_dir>/.flow_walker_state/`; a pre-cutover bundle's `flow_walker_state`,
-# a regular file, is placed nowhere, and the walk starts fresh. `planning/`: the next job only, never a mirror — an untracked draft left
+# only. `planning/`: the next job only, never a mirror — an untracked draft left
 # in the mirror would make its later fast-forward to `origin/<branch>` refuse,
-# because a commit on the branch adds the same path — the per-round commit of
-# the task-plan files, or the UI-test plan's convergence commit. `run.log`: the
+# because the draft's own convergence commit adds the same path. `run.log`: the
 # user only — `sync` copies it to the main checkout's logs directory itself,
 # and no restore places it.
 #
@@ -6363,7 +6147,7 @@ hr_github_resume_route() {
 
 # hr_remote_planning_paths <branch>
 #
-# Assigns `HR_REMOTE_PLANNING_PATHS`: the nine planning paths of the format
+# Assigns `HR_REMOTE_PLANNING_PATHS`: the eight planning paths of the format
 # above, relative to <state_dir>, newline-separated, no trailing slash. 1 with
 # an empty value for an empty <branch>.
 hr_remote_planning_paths() {
@@ -6377,37 +6161,8 @@ ui_test_plans/$branch
 task_plan_reviews/$branch
 business_parity_reviews/$branch
 architecture_reviews/$branch
-plan_revisions/$branch
 ui_test_plan_reviews/$branch"
   return 0
-}
-
-# hr_walk_state_name <branch>
-#
-# Prints <branch> as `urllib.parse.quote(branch, safe="")` encodes it, the
-# mirror the header declares: each byte of `A-Za-z0-9_.-~` kept, every other
-# byte as `%XX`, upper-case hex, read byte by byte under `LC_ALL=C`. 1 with
-# nothing printed for an empty <branch>.
-hr_walk_state_name() {
-  local LC_ALL=C
-  local s="${1-}" out='' c v i=0 n
-  [ -n "$s" ] || return 1
-  n=${#s}
-  while [ "$i" -lt "$n" ]; do
-    c=${s:i:1}
-    case "$c" in
-      [ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.~-]) out="$out$c" ;;
-      *)
-        printf -v v '%d' "'$c"
-        # bash 3.2 reads a byte above 0x7F as a signed char.
-        [ "$v" -ge 0 ] || v=$((v + 256))
-        printf -v v '%%%02X' "$v"
-        out="$out$v"
-        ;;
-    esac
-    i=$((i + 1))
-  done
-  printf '%s\n' "$out"
 }
 
 # hr_remote_status_write <registry_file> <branch> <out_json> <decision> <detail>
@@ -6684,9 +6439,7 @@ hr_remote_copy_tree() {
 # absolute. A linked `remote_status.json` falls through to the registry-derived
 # `status.json`, as an absent one does. Directory sources go through
 # `hr_remote_copy_tree`, so no link inside one is copied or followed either:
-# the bundle holds no link at all. The walker state's files are selected by
-# name rather than copied as a tree, each one gated as its own source, under
-# the same discipline.
+# the bundle holds no link at all.
 #
 # WHY NOT `cp -R`, MEASURED 2026-10-17. Command, in a fresh `mktemp -d`:
 #   mkdir -p src/sub; echo secret > sentinel; echo hi > src/a
@@ -6703,7 +6456,6 @@ hr_remote_copy_tree() {
 # is published.
 hr_remote_bundle_write() {
   local root="${1-}" branch="${2-}" registry="${3-}" out="${4-}" state base rel dst rc=0
-  local enc wsrc entry
   [ -n "$root" ] && [ -n "$branch" ] && [ -n "$registry" ] && [ -n "$out" ] || return 1
   hr_remote_state_dir_var "$root" || rc=$?
   case "$rc" in
@@ -6739,23 +6491,8 @@ hr_remote_bundle_write() {
     cp "$base/$HR_REMOTE_PAUSE_FILE" "$out/$HR_REMOTE_PAUSE_FILE" 2>/dev/null || return 1
   fi
   if hr_remote_bundle_source_ok "$root" "$state/$HR_REMOTE_WALKER_SOURCE" \
-    && [ -d "$base/$HR_REMOTE_WALKER_SOURCE" ]; then
-    enc=$(hr_walk_state_name "$branch") || return 1
-    wsrc="$base/$HR_REMOTE_WALKER_SOURCE"
-    # `find` without `-L` / `-H` never descends through a link; each match is
-    # still gated as a source, so a linked leaf gets the skip line. No glob
-    # character survives the encoding, so `-name` matches it literally.
-    while IFS= read -r -d '' entry; do
-      rel=${entry#"$wsrc"/}
-      hr_remote_bundle_source_ok "$root" "$state/$HR_REMOTE_WALKER_SOURCE/$rel" || continue
-      if [ ! -f "$entry" ]; then
-        printf 'remote state bundle: skipped %s: %s is not a regular file\n' "$entry" "$entry" >&2
-        continue
-      fi
-      dst="$out/$HR_REMOTE_WALKER_FILE/$rel"
-      mkdir -p "${dst%/*}" 2>/dev/null || return 1
-      cp "$entry" "$dst" 2>/dev/null || return 1
-    done < <(find "$wsrc" -name "$enc.json" ! -type d -print0 2>/dev/null)
+    && [ -f "$base/$HR_REMOTE_WALKER_SOURCE" ]; then
+    cp "$base/$HR_REMOTE_WALKER_SOURCE" "$out/$HR_REMOTE_WALKER_FILE" 2>/dev/null || return 1
   fi
   if hr_remote_bundle_source_ok "$root" "$state/$HR_REMOTE_LOGS_DIR/$branch.log" \
     && [ -f "$base/$HR_REMOTE_LOGS_DIR/$branch.log" ]; then
@@ -6830,38 +6567,17 @@ hr_remote_move_aside() {
 # hr_remote_bundle_restore <bundle_dir> <root> <branch> <mode>
 #
 # <mode> `job` places the clarification directory, `PAUSE_PROGRESS.md`, the
-# walker state, the planning drafts and `status.json` (as
-# `autonomous_logs/remote_status.json`); `mirror` places the first two only.
-# The run log is placed by neither.
-#
-# THE WALKER STATE. Each regular file under the bundle's `flow_walker_state/`
-# directory named `<enc>.json` for <branch> is placed at its relative path
-# under `<state_dir>/.flow_walker_state/`, its directories made; one whose
-# target path has a symbolic link on it, or whose target is a directory, is
-# placed nowhere. A `flow_walker_state` that is a regular file — a pre-cutover
-# bundle — or a link is not restored, and the walk starts fresh.
+# walker state (back under its dotted name), the planning drafts and
+# `status.json` (as `autonomous_logs/remote_status.json`); `mirror` places the
+# first two only. The run log is placed by neither.
 #
 # A PLANNING DRAFT NEVER OVERWRITES. A regular file under `planning/` whose
 # path lies in `HR_REMOTE_PLANNING_PATHS` and has no `..` segment is placed only
 # where nothing exists, counted in `HR_REMOTE_PLANNING_PLACED`; one whose target
 # exists is left byte-identical — the checkout's copy is the branch's committed
 # record — and counted in `HR_REMOTE_PLANNING_KEPT`. A symlink, a non-regular
-# entry or a path outside the set counts in none of the three counters.
-#
-# A COMMITTED ROUND IS THE WHOLE TASK-PLAN STATE. When <root> tracks the story
-# index (`git ls-files --error-unmatch`; any non-zero exit, `git` absent
-# included, is untracked), every such file under the six task-plan paths — the
-# story index, `task_plans/`, `task_plan_reviews/`, `business_parity_reviews/`,
-# `architecture_reviews/`, `plan_revisions/` — is placed nowhere and counted in
-# `HR_REMOTE_PLANNING_WITHHELD`: those files are committed at every round's end,
-# so a draft newer than the commit — a job killed mid-round — placed beside it
-# would leave the next session walking a mixture of two revisions. When the
-# bundle carries a walker-state directory and any withheld file is missing from <root> or
-# differs from its copy there (`cmp -s`), the walker state is not placed and
-# `HR_REMOTE_WALKER_WITHHELD` is `1`, so the next session's `start` decides from
-# the committed round. The UI-test-plan paths keep the never-overwrites rule in
-# both cases: they stay untracked until their convergence. All four counters
-# are `0` at entry and stay `0` in `mirror` mode.
+# entry or a path outside the set counts in neither. Both are `0` at entry and
+# stay `0` in `mirror` mode.
 #
 # THE CLARIFICATION DIRECTORY IS REPLACED WHOLESALE, AND NOTHING IS DELETED. An
 # existing target is moved aside by `hr_remote_move_aside` before the bundle's
@@ -6875,11 +6591,9 @@ hr_remote_move_aside() {
 # `branch` other than <branch>) or <root>'s configuration is unresolvable.
 hr_remote_bundle_restore() {
   local bundle="${1-}" root="${2-}" branch="${3-}" mode="${4-}"
-  local state base named target tmp pdir file rel p inset tracked differs wdir enc
+  local state base named target tmp pdir file rel p inset
   HR_REMOTE_PLANNING_PLACED=0
   HR_REMOTE_PLANNING_KEPT=0
-  HR_REMOTE_PLANNING_WITHHELD=0
-  HR_REMOTE_WALKER_WITHHELD=0
   [ -n "$bundle" ] && [ -n "$root" ] && [ -n "$branch" ] || return 1
   case "$mode" in
     job|mirror) ;;
@@ -6907,11 +6621,10 @@ hr_remote_bundle_restore() {
   fi
   [ "$mode" = job ] || return 0
 
-  tracked=0
-  if git -C "$root" ls-files --error-unmatch -- "$state/story_plans/${branch}_story_plan.md" >/dev/null 2>&1; then
-    tracked=1
+  if [ -f "$bundle/$HR_REMOTE_WALKER_FILE" ]; then
+    mkdir -p "$base" 2>/dev/null || return 1
+    cp "$bundle/$HR_REMOTE_WALKER_FILE" "$base/$HR_REMOTE_WALKER_SOURCE" 2>/dev/null || return 1
   fi
-  differs=0
   pdir="$bundle/$HR_REMOTE_PLANNING_DIR"
   if [ -d "$pdir" ] && [ ! -L "$pdir" ]; then
     hr_remote_planning_paths "$branch" || return 1
@@ -6933,19 +6646,6 @@ hr_remote_bundle_restore() {
 $HR_REMOTE_PLANNING_PATHS
 EOF
       [ "$inset" = 1 ] || continue
-      if [ "$tracked" = 1 ]; then
-        case "$rel" in
-          "story_plans/${branch}_story_plan.md" | "task_plans/$branch"/* | \
-          "task_plan_reviews/$branch"/* | "business_parity_reviews/$branch"/* | \
-          "architecture_reviews/$branch"/* | "plan_revisions/$branch"/*)
-            HR_REMOTE_PLANNING_WITHHELD=$((HR_REMOTE_PLANNING_WITHHELD + 1))
-            if [ ! -f "$base/$rel" ] || [ -L "$base/$rel" ] || ! cmp -s "$file" "$base/$rel"; then
-              differs=1
-            fi
-            continue
-            ;;
-        esac
-      fi
       if [ -e "$base/$rel" ] || [ -L "$base/$rel" ]; then
         HR_REMOTE_PLANNING_KEPT=$((HR_REMOTE_PLANNING_KEPT + 1))
         continue
@@ -6956,28 +6656,6 @@ EOF
       HR_REMOTE_PLANNING_PLACED=$((HR_REMOTE_PLANNING_PLACED + 1))
     done < <(find "$pdir" -type f 2>/dev/null)
   fi
-  wdir="$bundle/$HR_REMOTE_WALKER_FILE"
-  if [ -d "$wdir" ] && [ ! -L "$wdir" ]; then
-    if [ "$differs" = 1 ]; then
-      HR_REMOTE_WALKER_WITHHELD=1
-    else
-      enc=$(hr_walk_state_name "$branch") || return 1
-      while IFS= read -r -d '' file; do
-        [ -f "$file" ] && [ ! -L "$file" ] || continue
-        rel=${file#"$wdir"/}
-        case "/$rel/" in
-          */../*) continue ;;
-        esac
-        # A link anywhere on the target path, the leaf included, is refused:
-        # `mkdir -p` and `cp` would both write through it.
-        hr_remote_link_free_var "$root" "$state/$HR_REMOTE_WALKER_SOURCE/$rel" || continue
-        target="$base/$HR_REMOTE_WALKER_SOURCE/$rel"
-        [ ! -d "$target" ] || continue
-        mkdir -p "${target%/*}" 2>/dev/null || return 1
-        cp "$file" "$target" 2>/dev/null || return 1
-      done < <(find "$wdir" -type f -name "$enc.json" -print0 2>/dev/null)
-    fi
-  fi
   mkdir -p "$base/$HR_REMOTE_LOGS_DIR" 2>/dev/null || return 1
   tmp=$(mktemp "$base/$HR_REMOTE_STATUS_SOURCE.tmp.XXXXXX" 2>/dev/null) || return 1
   if cp "$bundle/$HR_REMOTE_STATUS_FILE" "$tmp" 2>/dev/null \
@@ -6986,77 +6664,6 @@ EOF
   fi
   rm -f "$tmp"
   return 1
-}
-
-# ---------------------------------------------------------------------------
-# THE FLOW HOST'S ENVIRONMENT — the one route that syncs the walker's Python
-# environment, for `flow-host-provision.sh` and `setup-worktree.sh` alike.
-#
-# THE LAYOUT NAMES BELOW ARE THE ONE SHELL MIRROR of their owners, set when
-# the library is sourced and read by `hr_flow_host_provision` and by
-# `flow-walker.sh`, which spell none of them. A rename at an owner is an edit
-# here, byte for byte, and `cli/test/flow-host-provision.test.mjs` holds each
-# equal to its owner:
-#   HR_FLOW_HOST_DIRNAME         'python'              mirrors  cli/src/flowHost/layout.ts → FLOW_HOST_DIRNAME
-#   HR_FLOW_HOST_PROJECT         'devscene-flow-host'  mirrors  cli/src/flowHost/layout.ts → FLOW_HOST_PROJECT
-#   HR_FLOW_HOST_GRAPHSCENE      'graphscene'          mirrors  cli/src/flowHost/layout.ts → FLOW_HOST_PACKAGES, its entry other than FLOW_HOST_PROJECT
-#   HR_FLOW_HOST_ENV_DIRNAME     '.venv'               mirrors  cli/src/flowHost/layout.ts → FLOW_HOST_ENV_DIRNAME
-#   HR_FLOW_HOST_SOURCE_DIRNAME  'src'                 mirrors  cli/src/flowHost/layout.ts → FLOW_HOST_SOURCE_DIRNAME
-#   HR_FLOW_HOST_ENV_MARKER      'pyvenv.cfg'          mirrors  cli/src/flowHost/provision.ts → ENV_MARKER_FILE
-# ---------------------------------------------------------------------------
-
-HR_FLOW_HOST_DIRNAME='python'
-HR_FLOW_HOST_PROJECT='devscene-flow-host'
-HR_FLOW_HOST_GRAPHSCENE='graphscene'
-HR_FLOW_HOST_ENV_DIRNAME='.venv'
-HR_FLOW_HOST_SOURCE_DIRNAME='src'
-HR_FLOW_HOST_ENV_MARKER='pyvenv.cfg'
-
-# hr_flow_host_provision <source_scripts_dir> <env_scripts_dir> — sync the
-# project `<source_scripts_dir>/python/devscene-flow-host` into the environment
-# `<env_scripts_dir>/python/.venv`. Both arguments are absolute `scriptsDir`
-# paths; they differ only when a run copy's environment is built from the main
-# checkout's packages.
-#
-# `UV_PROJECT_ENVIRONMENT` is set on the `uv` command alone, never assigned
-# here. `uv`'s own stdout goes to stderr, so stdout carries only the success line.
-#
-#   no `uv` on PATH   stderr `flow-host: provision: failed — uv is not on PATH;
-#                     install uv, then run bash <env_scripts_dir>/flow-host-provision.sh
-#                     outside the sandbox`, return 1
-#   no pyproject      stderr `flow-host: provision: failed — no flow host at
-#                     <project>; run npx devscene init --upgrade`, return 1
-#   synced            stdout `flow-host: provisioned <environment>`, return 0
-#   `uv` failed       stderr `flow-host: provision: failed (exit <n>)`, return 1
-#   an empty argument stderr `flow-host: provision: failed — needs two scripts
-#                     directories`, return 1
-hr_flow_host_provision() {
-  local src="${1-}" env_root="${2-}"
-  local project environment status
-  if [ -z "$src" ] || [ -z "$env_root" ]; then
-    printf '%s\n' 'flow-host: provision: failed — needs two scripts directories' >&2
-    return 1
-  fi
-  while [ "$src" != / ] && [ "${src%/}" != "$src" ]; do src=${src%/}; done
-  while [ "$env_root" != / ] && [ "${env_root%/}" != "$env_root" ]; do env_root=${env_root%/}; done
-  project="$src/$HR_FLOW_HOST_DIRNAME/$HR_FLOW_HOST_PROJECT"
-  environment="$env_root/$HR_FLOW_HOST_DIRNAME/$HR_FLOW_HOST_ENV_DIRNAME"
-  if ! command -v uv >/dev/null 2>&1; then
-    printf 'flow-host: provision: failed — uv is not on PATH; install uv, then run bash %s/flow-host-provision.sh outside the sandbox\n' "$env_root" >&2
-    return 1
-  fi
-  if [ ! -f "$project/pyproject.toml" ]; then
-    printf 'flow-host: provision: failed — no flow host at %s; run npx devscene init --upgrade\n' "$project" >&2
-    return 1
-  fi
-  status=0
-  UV_PROJECT_ENVIRONMENT="$environment" uv sync --frozen --no-dev --no-editable --project "$project" >&2 || status=$?
-  if [ "$status" -ne 0 ]; then
-    printf 'flow-host: provision: failed (exit %s)\n' "$status" >&2
-    return 1
-  fi
-  printf 'flow-host: provisioned %s\n' "$environment"
-  return 0
 }
 
 # ---------------------------------------------------------------------------

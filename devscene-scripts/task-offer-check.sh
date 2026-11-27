@@ -41,8 +41,8 @@
 # TWO SETTLED STATES. A checkout whose fence names this script but which
 # predates it gets bash's "No such file or directory", a non-zero exit and empty
 # stdout — silence. A copy older than the template needs nothing: the exit
-# contract is the whole interface, and `init --upgrade` is the upgrade route, as
-# for every outer-loop script.
+# contract is the whole interface, and `init --force` (after a `.bak`) is the
+# upgrade route, as for every outer-loop script.
 #
 # REPRO — reproduce each outcome by hand, against a throwaway fixture:
 #

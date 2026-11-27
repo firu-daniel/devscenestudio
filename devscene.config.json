@@ -42,7 +42,6 @@
   },
   "forge": "github",
   "execution": {
-    "target": "github-actions",
-    "scriptDrivenPlanning": false
+    "target": "github-actions"
   }
 }

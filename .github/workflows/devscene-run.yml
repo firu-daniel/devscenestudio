@@ -189,20 +189,16 @@
 #   actions/cache/restore     v6.1.0
 #   actions/cache             v6.1.0
 #   actions/upload-artifact   v7.0.1
-#   astral-sh/setup-uv        v10.3.0
 # Each `uses:` names the full commit sha of the release on the comment line
-# above it. Each of the five actions/* releases' own action.yml declares
-# `runs.using: node24`, per a maintainer's lookups on 2026-10-21 (UTC) of each
-# action's action.yml, release notes and tag: each sha is the commit its release
-# tag names, on the action's default branch. setup-uv v10.3.0's action.yml
-# declares `runs.using: "node24"` too, per a maintainer's lookup on 2026-11-24
-# (UTC) of its action.yml at the pinned sha, which its release tag names; its
-# README names no runner floor of its own. Each of those five releases' README
-# requires Actions Runner 2.327.1 or newer, which every node24 action here
-# needs; a GitHub-hosted runner already has it, and a self-hosted one must run
-# it (docs/remote-execution.md, section 8). A sha, not a tag: a tag is mutable, and this job holds the Claude
+# above it. Each release's own action.yml declares `runs.using: node24`, per
+# a maintainer's lookups on 2026-10-21 (UTC) of each action's action.yml,
+# release notes and tag: each sha is the commit its release tag names, on the
+# action's default branch. Each release's README requires Actions Runner
+# 2.327.1 or newer; a GitHub-hosted runner already
+# has it, and a self-hosted one must run it (docs/remote-execution.md, section
+# 8). A sha, not a tag: a tag is mutable, and this job holds the Claude
 # credential and write tokens. A pin moves when
-# `npx devscene@latest init --upgrade-workflows` re-renders
+# `npx devscene@<version> init --upgrade-workflows` re-renders
 # this file at a newer release's pins; a hand bump replaces the sha and its
 # comment line together. The version stays on its own line, never trailing the
 # `uses:` value: a value carrying ` #` is never a plain scalar.
@@ -326,9 +322,9 @@
 # `deliver` job's last step, runs `remote-run.sh deliver` on the bundle
 # `Download the state bundle` fetched from the `run` job's upload, after that
 # job's final push, so the pull request's head carries the run's last commit.
-# It is `continue-on-error`: a repository that re-rendered this file but has not
-# brought its scripts current with `init --upgrade` still runs scripts with no
-# `deliver` verb, and a finished run must not be marked failed for its report.
+# It is `continue-on-error`: a repository that re-rendered this file without
+# `init --force` still runs scripts with no `deliver` verb, and a finished run
+# must not be marked failed for its report.
 #
 # WHY THE OPEN STEP RUNS ONLY WHEN chain IS 0. `Open the draft pull request`,
 # the `open` job's last step, runs `remote-run.sh open` before the `run` job, so
@@ -865,14 +861,6 @@ jobs:
             echo "::error::init $DEVSCENE_CLI_VERSION changed tracked files. Run 'npx devscene@$DEVSCENE_CLI_VERSION init' locally and commit the result."
             exit 1
           fi
-
-      - name: Set up uv
-        if: env.HARNESS_STOPPED != '1'
-        # astral-sh/setup-uv v10.3.0
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884
-        with:
-          # A cache restored from another branch's run would feed an unsandboxed install.
-          enable-cache: false
 
       - name: Install the sandbox prerequisites
         if: env.HARNESS_STOPPED != '1'

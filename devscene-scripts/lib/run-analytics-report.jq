@@ -13,38 +13,26 @@
 #   - schema 1: neither `rounds` nor `gate_logs`.
 #   - schema 2: a `rounds` array, no `gate_logs`.
 #   - schema 3: a `gate_logs` array and a `rounds` array, which may be empty.
-#   - schema 4: as schema 3; its session records carry `kind` and `node`.
 # Sessions oldest first, each record as lib/run-analytics.jq's header states it;
 # each round record as its mode `rounds` states it, each gate-log entry as its
 # mode `gate_logs` states it. A session record without `network_refusals`
-# predates the refusal scan; one without `kind` predates schema 4 and is an
-# engine session. A schema other than 1, 2, 3 or 4 is an error naming it; so is
-# a schema-1 document carrying `rounds`, a schema-1 or schema-2 one carrying
-# `gate_logs`, or a schema-2, 3 or 4 one whose `rounds` (or, on schema 3 and 4,
-# `gate_logs`) is not an array.
+# predates the refusal scan. A schema other than 1, 2 or 3 is an error naming
+# it; so is a schema-1 document carrying `rounds`, a schema-1 or schema-2 one
+# carrying `gate_logs`, or a schema-2 or schema-3 one whose `rounds` (or, on
+# schema 3, `gate_logs`) is not an array.
 #
 # Mode `rollup`:   jq -S -f run-analytics-report.jq --arg mode rollup
 #   document in -> the same document with `.run` replaced, `.rounds` and
 #   `.gate_logs` untouched:
-#   {sessions, engine_sessions, node_sessions, complete_sessions, first_at,
-#    last_at, span_ms, wall_ms, session_wall_sum_ms, duration_ms,
-#    duration_api_ms, host_suspended_ms, idle_ms, active_ms, planning_nodes,
+#   {sessions, complete_sessions, first_at, last_at, span_ms, wall_ms,
+#    duration_ms, duration_api_ms, host_suspended_ms, idle_ms, active_ms,
 #    total_cost_usd, input_tokens, output_tokens, thinking_tokens,
 #    cache_read_tokens, cache_write_tokens, cache_write_5m_tokens,
 #    cache_write_1h_tokens, token_sessions, cache_hit_ratio, requests,
 #    api_retries, permission_denials, subagents_failed, subagents_killed,
 #    slowest_subagent, rate_limit_peak, network}
-#   sessions is the total; engine_sessions counts the records whose kind is not
-#   "planning_node", node_sessions those whose kind is. planning_nodes = one
-#   {session (1-based position in .sessions), node, session_id, complete,
-#   wall_ms, active_ms, idle_ms, duration_ms, total_cost_usd (its share)} per
-#   planning node session, in session order: each node's own figures.
-#   wall_ms, idle_ms, active_ms and host_suspended_ms are the run's own, as RUN
-#   TIME below states; session_wall_sum_ms sums every session's time.wall_ms,
-#   and duration_ms and duration_api_ms are sums over sessions too.
-#   Sums skip null (null when every session's value is null). first_at and
-#   last_at are the earliest first_at and the latest last_at by time (the first
-#   and last session's when none parses); span_ms = last_at - first_at. input_tokens, output_tokens,
+#   Sums skip null (null when every session's value is null). span_ms = last
+#   session's last_at - first session's first_at. input_tokens, output_tokens,
 #   cache_read_tokens and cache_write_tokens sum the sessions' shares; a record
 #   whose cost has no token_source key predates true token accounting and
 #   contributes null. token_sessions = shares whose output_tokens is a number.
@@ -66,42 +54,15 @@
 #   flattens every gate-log entry's matches in document order; gate_logs_scanned
 #   = number of gate-log entries, 0 without `.gate_logs`. Nothing is cut or
 #   sorted. branch-status reads wall_ms, active_ms, host_suspended_ms, idle_ms,
-#   sessions, engine_sessions, node_sessions, total_cost_usd, cache_hit_ratio,
-#   slowest_subagent and network: fixed names.
-#
-# RUN TIME. The planning driver runs node sessions at the same time, so the
-# run's time is not the sum of its sessions'. A session with a parsing first_at
-# and last_at is the interval [first_at, last_at]; overlapping intervals (one
-# starting before another ends) form a cluster, and the clusters' figures are
-# summed with every untimed session's own time figures, the fallback.
-#   - A cluster of one session takes that session's own wall_ms, idle_ms,
-#     active_ms and host_suspended_ms, so sessions that never overlap — the
-#     orchestrated path's — roll up to exactly their sums.
-#   - A larger cluster's wall_ms is the length of its intervals' union. Each
-#     member's non-idle stretches are its interval less its idle_gaps (start_at
-#     + length_ms, clipped to the interval; a gap whose start_at does not parse
-#     counts as non-idle); active_ms is the length of the union of every
-#     member's stretches, idle_ms = wall_ms - active_ms: time in which no
-#     member was active, exactly.
-#   - A larger cluster's host_suspended_ms is the largest of its members'.
-#     This is an approximation: a session's figure is wall_ms - duration_ms and
-#     names no interval, and a host_asleep gap class marks a gap that overlaps
-#     a suspend, not the suspend's own bounds. A suspend stalls every session
-#     at once, so a member spanning every suspend in the cluster gives the
-#     exact figure; suspends falling in different members' spans with no one
-#     member spanning them all are undercounted.
+#   sessions, total_cost_usd, cache_hit_ratio, slowest_subagent and network:
+#   fixed names.
 #
 # Mode `markdown`: jq -r -f run-analytics-report.jq --arg mode markdown
-#   document in -> Markdown text: `## Whole run`, `## Planning node sessions`
-#   when a session is a planning node (nothing at all otherwise), `## Network
-#   refusals`, `## Possible network attempts in gate logs (best effort)`, then
+#   document in -> Markdown text: `## Whole run`, `## Network refusals`,
+#   `## Possible network attempts in gate logs (best effort)`, then
 #   `## Gate rounds` when `.rounds` is non-empty (nothing at all otherwise), then
 #   `## Session <k>` per session, oldest first. `.run` is recomputed, never read.
 #   Nothing in the text varies between two renders of one document.
-#   - `## Whole run` shows the split session counts, the run's Wall, Active,
-#     Host-suspended and Idle, and session_wall_sum_ms labelled as a sum.
-#   - `## Planning node sessions`: one row per planning_nodes entry. A node's
-#     `## Session <k>` names its node under its session id.
 #   - `## Network refusals` always renders: `<scanned> of <sessions> sessions
 #     scanned.`, plus ` <n> recorded before refusals were scanned.` when any is
 #     not, then `No refused network call.` or one table row per refusal;
@@ -139,13 +100,8 @@
 #     transcript, or a record from before token accounting) renders — in its
 #     five token cells.
 #   - A by_tool row for Agent / Task is labelled sub-agent wall time, with a
-#     line saying it sums every dispatch's own wall time, so dispatches sent
-#     together count once each and the sum can exceed the orchestrator's wait,
-#     which `### Time`'s `Sub-agents (union)` (time.subagent_wall_ms, — for a
-#     record without it) shows; `#### Slowest calls` drops Agent / Task from
+#     line saying so; `#### Slowest calls` drops Agent / Task from
 #     tools.slowest, so records written before slowest excluded them match.
-#   - `### Sub-agents` carries a line, when it has a row, that overlapping
-#     dispatches' wall shares can sum past 1.
 #
 # RESUMED SESSIONS. A record keyed "<session_id>#<N>" is a resume, and its result
 # event reports total_cost_usd, by_model cost, duration_api_ms and the sub-agent
@@ -229,57 +185,6 @@ def pooled_requests:
      over_threshold: ([$it[] | select((.l | type) == "number" and (.th | type) == "number"
                                       and .l > (.th * 1000))] | length)};
 
-# Ascending [[start, end], …] -> the same intervals merged where they overlap or touch.
-def merge_iv:
-  sort_by(.[0])
-  | reduce .[] as $iv ([];
-      if length > 0 and $iv[0] <= .[length - 1][1] then
-        (length - 1) as $k | .[$k][1] = ([.[$k][1], $iv[1]] | max)
-      else . + [$iv] end);
-
-def iv_len: merge_iv | map(.[1] - .[0]) | add // 0;
-
-def is_node: .kind == "planning_node";
-
-# One session with numeric $a <= $z -> its non-idle stretches: [$a, $z] less its
-# idle gaps, each clipped to that span. A gap whose start_at does not parse is
-# left out, so its time counts as non-idle.
-def active_iv($a; $z):
-  [(.time.idle_gaps // [])[] | (.start_at | ts_ms) as $s | .length_ms as $len
-   | select($s != null and ($len | type) == "number")
-   | [([$s, $a] | max), ([$s + $len, $z] | min)] | select(.[0] < .[1])]
-  | merge_iv
-  | reduce .[] as $g ({cur: $a, out: []};
-      (if $g[0] > .cur then .out += [[.cur, $g[0]]] else . end) | .cur = ([.cur, $g[1]] | max))
-  | .out + (if .cur < $z then [[.cur, $z]] else [] end);
-
-# Input: .sessions. Output: {wall_ms, idle_ms, active_ms, host_suspended_ms},
-# the run perspective the header's RUN TIME states.
-def run_time:
-  . as $ss
-  | [range(0; $ss | length) as $i | ($ss[$i].first_at | ts_ms) as $a | ($ss[$i].last_at | ts_ms) as $z
-     | {i: $i, a: $a, z: $z}] as $all
-  | [$all[] | select(.a != null and .z != null and .z >= .a)] as $timed
-  | [$all[] | select((.a != null and .z != null and .z >= .a) | not) | $ss[.i].time
-     | {wall_ms, idle_ms, active_ms, host_suspended_ms}] as $untimed
-  | ($timed | sort_by(.a)
-     | reduce .[] as $s ([];
-         if length > 0 and $s.a < .[length - 1].hi then
-           (length - 1) as $k | .[$k].hi = ([.[$k].hi, $s.z] | max) | .[$k].m += [$s]
-         else . + [{lo: $s.a, hi: $s.z, m: [$s]}] end)) as $clusters
-  | [$clusters[]
-     | if (.m | length) == 1 then $ss[.m[0].i].time | {wall_ms, idle_ms, active_ms, host_suspended_ms}
-       else
-         (.hi - .lo) as $wall
-         | ([.m[] | . as $s | $ss[$s.i] | active_iv($s.a; $s.z)[]] | iv_len) as $busy
-         | {wall_ms: $wall, idle_ms: ($wall - $busy), active_ms: $busy,
-            host_suspended_ms: ([.m[] | $ss[.i].time.host_suspended_ms | numbers]
-                                | if length == 0 then null else max end)}
-       end] as $parts
-  | ($parts + $untimed) as $p
-  | {wall_ms: ($p | num_sum(.wall_ms)), idle_ms: ($p | num_sum(.idle_ms)),
-     active_ms: ($p | num_sum(.active_ms)), host_suspended_ms: ($p | num_sum(.host_suspended_ms))};
-
 # Input: .sessions. Output: the `.run` object the header lists.
 def run_of:
   . as $ss
@@ -288,32 +193,20 @@ def run_of:
   | ($sh | num_sum(.cache_read_tokens)) as $cr
   | ($sh | num_sum(.cache_write_tokens)) as $cw
   | (($cr // 0) + ($cw // 0) + ($in // 0)) as $den
-  | [$ss[] | {f: .first_at, l: .last_at, a: (.first_at | ts_ms), z: (.last_at | ts_ms)}] as $ends
-  | ([$ends[] | select(.a != null)] | if length == 0 then null else (min_by(.a) | .f) end) as $first_t
-  | ([$ends[] | select(.z != null)] | if length == 0 then null else (max_by(.z) | .l) end) as $last_t
-  | (if $first_t != null then $first_t elif ($ss | length) == 0 then null else $ss[0].first_at end) as $first
-  | (if $last_t != null then $last_t elif ($ss | length) == 0 then null else $ss[-1].last_at end) as $last
-  | ($ss | run_time) as $rt
+  | ($ss | if length == 0 then null else .[0].first_at end) as $first
+  | ($ss | if length == 0 then null else .[-1].last_at end) as $last
   | {sessions: ($ss | length),
-     engine_sessions: ([$ss[] | select(is_node | not)] | length),
-     node_sessions: ([$ss[] | select(is_node)] | length),
      complete_sessions: ([$ss[] | select(.complete == true)] | length),
      first_at: $first,
      last_at: $last,
      span_ms: (($first | ts_ms) as $a | ($last | ts_ms) as $z
                | if $a != null and $z != null then $z - $a else null end),
-     wall_ms: $rt.wall_ms,
-     session_wall_sum_ms: ($ss | num_sum(.time.wall_ms)),
+     wall_ms: ($ss | num_sum(.time.wall_ms)),
      duration_ms: ($ss | num_sum(.time.duration_ms)),
      duration_api_ms: ($sh | num_sum(.duration_api_ms)),
-     host_suspended_ms: $rt.host_suspended_ms,
-     idle_ms: $rt.idle_ms,
-     active_ms: $rt.active_ms,
-     planning_nodes: [range(0; $ss | length) as $i | $ss[$i] | select(is_node)
-                      | {session: ($i + 1), node, session_id, complete,
-                         wall_ms: .time.wall_ms, active_ms: .time.active_ms,
-                         idle_ms: .time.idle_ms, duration_ms: .time.duration_ms,
-                         total_cost_usd: $sh[$i].total_cost_usd}],
+     host_suspended_ms: ($ss | num_sum(.time.host_suspended_ms)),
+     idle_ms: ($ss | num_sum(.time.idle_ms)),
+     active_ms: ($ss | num_sum(.time.active_ms)),
      total_cost_usd: ($sh | num_sum(.total_cost_usd) | if . == null then . else round6 end),
      input_tokens: $in,
      output_tokens: ($sh | num_sum(.output_tokens)),
@@ -358,16 +251,18 @@ def slowest_test_files: 10;
 
 def check_doc:
   if type != "object" then error("run-analytics-report.jq: input is not a run-analytics document")
-  elif .schema != 1 and .schema != 2 and .schema != 3 and .schema != 4 then
-    error("run-analytics-report.jq: document schema \(.schema | tojson) is not supported; expected 1, 2, 3 or 4")
+  elif .schema != 1 and .schema != 2 and .schema != 3 then
+    error("run-analytics-report.jq: document schema \(.schema | tojson) is not supported; expected 1, 2 or 3")
   elif .schema == 1 and has("rounds") then
     error("run-analytics-report.jq: a schema 1 document carries .rounds; only schema 2 may")
-  elif .schema < 3 and has("gate_logs") then
-    error("run-analytics-report.jq: a schema \(.schema) document carries .gate_logs; only schema 3 and 4 may")
-  elif .schema >= 2 and (.rounds | type) != "array" then
-    error("run-analytics-report.jq: schema \(.schema) document's .rounds is not an array")
-  elif .schema >= 3 and (.gate_logs | type) != "array" then
-    error("run-analytics-report.jq: schema \(.schema) document's .gate_logs is not an array")
+  elif .schema != 3 and has("gate_logs") then
+    error("run-analytics-report.jq: a schema \(.schema) document carries .gate_logs; only schema 3 may")
+  elif .schema == 2 and (.rounds | type) != "array" then
+    error("run-analytics-report.jq: schema 2 document's .rounds is not an array")
+  elif .schema == 3 and (.rounds | type) != "array" then
+    error("run-analytics-report.jq: schema 3 document's .rounds is not an array")
+  elif .schema == 3 and (.gate_logs | type) != "array" then
+    error("run-analytics-report.jq: schema 3 document's .gate_logs is not an array")
   elif (.sessions | type) != "array" then error("run-analytics-report.jq: .sessions is not an array")
   else . end;
 
@@ -428,10 +323,8 @@ def whole_run($b):
   | ["# Run analytics — \($b | fmt)", "", "## Whole run", ""]
     + table(["Measure", "Value"]; [
         ["Sessions", "\($r.sessions) (\($r.sessions - $r.complete_sessions) incomplete)"],
-        ["Engine / planning node sessions", "\($r.engine_sessions) / \($r.node_sessions)"],
         ["Span", ($r.span_ms | fmt_dur)],
         ["Wall", ($r.wall_ms | fmt_dur)],
-        ["Session wall, summed over sessions", ($r.session_wall_sum_ms | fmt_dur)],
         ["Active", ($r.active_ms | fmt_dur)],
         ["Host-suspended", ($r.host_suspended_ms | fmt_dur)],
         ["Idle", ($r.idle_ms | fmt_dur)],
@@ -457,15 +350,7 @@ def whole_run($b):
          ($r.slowest_subagent
           | if . == null then null
             else "\(.type | fmt) — \(.description | fmt) — \(.duration_ms | fmt_dur) (session \(.session))" end)],
-        ["Rate-limit peak", ($r.rate_limit_peak | fmt_map)]])
-    + ["", "Wall, Active, Host-suspended and Idle are the run's own: overlapping sessions' time counts once. The summed session wall counts each session's wall in full."]
-    + (if ($r.planning_nodes | length) == 0 then []
-       else ["", "## Planning node sessions", ""]
-            + table(["Session", "Node", "Wall", "Active", "Idle", "duration_ms", "Cost"];
-                    [$r.planning_nodes[] | [.session, .node, (.wall_ms | fmt_dur), (.active_ms | fmt_dur),
-                                           (.idle_ms | fmt_dur), (.duration_ms | fmt_dur),
-                                           (.total_cost_usd | fmt_usd)]])
-       end);
+        ["Rate-limit peak", ($r.rate_limit_peak | fmt_map)]]);
 
 def session_md($k; $sh):
   .time as $t
@@ -480,16 +365,14 @@ def session_md($k; $sh):
   | ["## Session \($k) — \(.first_at | fmt) → \(.last_at | fmt)"
        + (if .complete == false then " (incomplete — no result event)" else "" end),
      "", "Session id: `\(.session_id | fmt)`", ""]
-    + (if .kind == "planning_node" then ["Planning node: `\(.node | fmt)`", ""] else [] end)
     + (if $resumed then
          ["A resume of an earlier session: the result event's cost, per-model cost, `duration_api_ms` and sub-agent counts are cumulative, so this section shows this occurrence's share.", ""]
        else [] end)
     + ["### Time", ""]
-    + table(["Wall", "duration_ms", "duration_api_ms", "Host-suspended", "Idle", "Active",
-             "Sub-agents (union)", "Suspend source"];
+    + table(["Wall", "duration_ms", "duration_api_ms", "Host-suspended", "Idle", "Active", "Suspend source"];
             [[($t.wall_ms | fmt_dur), ($t.duration_ms | fmt_dur), ($sh.duration_api_ms | fmt_dur),
               ($t.host_suspended_ms | fmt_dur), ($t.idle_ms | fmt_dur), ($t.active_ms | fmt_dur),
-              ($t.subagent_wall_ms | fmt_dur), $t.suspend_source]])
+              $t.suspend_source]])
     + ["", "### Idle gaps (over \($t.idle_threshold_s | fmt) s)", ""]
     + table(["Start", "Length", "Context", "Class"];
             [($t.idle_gaps // [])[] | [.start_at, (.length_ms | fmt_dur), .context, .class]])
@@ -503,7 +386,7 @@ def session_md($k; $sh):
              | [(if .tool | is_dispatch then "\(.tool) — sub-agent wall time" else .tool end),
                 .context, .count, (.total_ms | fmt_dur), (.max_ms | fmt_dur)]])
     + (if [($tl.by_tool // [])[] | select(.tool | is_dispatch)] | length > 0 then
-         ["", "`Agent` / `Task` rows are sub-agent wall time: each row sums every dispatch's own wall time, which `### Sub-agents` breaks down per dispatch, so dispatches sent together count once each and the sum can exceed the time the orchestrator waited, which is `### Time`'s `Sub-agents (union)`. They are not time spent in a tool."]
+         ["", "`Agent` / `Task` rows are sub-agent wall time: how long the orchestrator was blocked on each dispatch, which `### Sub-agents` breaks down per dispatch. They are not time spent in a tool."]
        else [] end)
     + ["", "#### Slowest calls (sub-agent dispatches excluded)", ""]
     + table(["Tool", "Context", "Started", "Duration", "Result bytes", "Error", "Permission denied"];
@@ -523,9 +406,6 @@ def session_md($k; $sh):
                       .output_tokens, .input_tokens,
                       in_total(.input_tokens; .cache_read_tokens; .cache_write_tokens),
                       .cache_read_tokens, .cache_write_tokens, .wall_share]])
-    + (if ($sa | length) > 0 then
-         ["", "Wall share is each dispatch's own duration over the session's wall, so overlapping dispatches' wall shares can sum past 1."]
-       else [] end)
     + (if $untracked == 0 then []
        elif $sh.token_source == "legacy" then
          ["", "— in a token column: this session was recorded before token accounting, and its stream-derived sub-agent figures are partial, so none is shown."]

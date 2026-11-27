@@ -36,10 +36,7 @@
 # create-worktree.sh's surface check does not see a changed script entry. This
 # is code execution by nature and runs unsandboxed: a package manager runs the
 # manifest's lifecycle and script entries by nature, and no out-of-session
-# sandbox runtime ships to run them in. Step 6 is outside this residual under
-# `--target`, because it builds from the main checkout's protected packages;
-# with no argument it builds the checkout's own, a case a remote job's surface
-# check covers.
+# sandbox runtime ships to run them in.
 #
 # Every step is idempotent, so re-running it is the supported repair. It is not
 # meant to be run by a dispatched agent: it is not agent-invocable, it has no
@@ -55,7 +52,7 @@
 # `2>&-`) nor a redirection to the literal `/dev/null`. Adding the basename to
 # `DENY_SCRIPT_BASENAMES` is what would make the convention enforced.
 #
-# THE SIX STEPS, AND WHAT EACH DOES WHEN ITS INPUT IS ABSENT.
+# THE FIVE STEPS, AND WHAT EACH DOES WHEN ITS INPUT IS ABSENT.
 #
 #   1. Version manager. A stack that pins its toolchain through a version
 #      manager needs that manager's init file sourced before anything installs.
@@ -91,14 +88,6 @@
 #      than being an error — a project with no build step is ordinary. A build
 #      is skipped when the dependency install failed, because a build on a
 #      failed install only produces a second, less clear failure.
-#   6. The flow walker's environment (`hr_flow_host_provision`): the project
-#      `<scriptsDir>/python/devscene-flow-host` synced into
-#      `<scriptsDir>/python/.venv`. It runs whatever step 5 answered. No `uv` on
-#      PATH, no project there, or a failed sync prints one
-#      `flow-host: provision: failed …` line and fails the bootstrap, because
-#      the flow walker cannot run without the environment. Under `--target` the project is the main
-#      checkout's and only the environment is <dir>'s, so a copy's environment
-#      is never built from packages its run wrote.
 #
 # THE REFERENCE TOOLCHAIN IS NOT BOOTSTRAPPED HERE. A project that mirrors a
 # reference implementation lists that implementation's own commands in
@@ -401,27 +390,6 @@ if [ "$deps_ok" -eq 1 ]; then
   fi
 else
   echo "setup-worktree.sh: skipping build — the dependency install did not succeed" >&2
-fi
-
-# --- 6. The flow walker's environment. -------------------------------------
-# Under `--target` the project comes from `$cfg_root`, the main checkout, and
-# only the environment is written under <dir>.
-scripts_rel="$(hr_scripts_dir "$cfg_root")" || scripts_rel=""
-if [ -z "$scripts_rel" ]; then
-  echo "setup-worktree.sh: step 6 (flow-host provision) failed — cannot resolve scriptsDir" >&2
-  status=1
-else
-  if [ "$scripts_rel" = "." ]; then
-    flow_src_scripts="$cfg_root"
-    flow_env_scripts="$top"
-  else
-    flow_src_scripts="$cfg_root/$scripts_rel"
-    flow_env_scripts="$top/$scripts_rel"
-  fi
-  if ! hr_flow_host_provision "$flow_src_scripts" "$flow_env_scripts"; then
-    echo "setup-worktree.sh: step 6 (flow-host provision) failed" >&2
-    status=1
-  fi
 fi
 
 if [ "$status" -eq 0 ]; then

@@ -131,11 +131,8 @@
 #       `run-test-suite.sh` and every gate it runs are the sandbox's one command.
 #
 # START, SUPERVISE, WAIT. The launch form detaches the supervisor, this file
-# re-invoked with `--supervise`, through a `( trap '' HUP; exec … )` subshell,
-# `setsid` where it resolves, `</dev/null` and `disown`, so the supervisor
-# still enters with HUP ignored; not `nohup`, which exits 127 inside the macOS
-# session sandbox (`docs/sandbox-verification.md` §5 F17). It then polls the
-# lane each second for at most
+# re-invoked with `--supervise`, through `nohup`, `setsid` where it resolves,
+# `</dev/null` and `disown`, then polls the lane each second for at most
 # HR_TEST_RUN_STALE_SECONDS. The supervisor re-runs checks 1–9 and 11, runs `bwrap` in its
 # own foreground, sweeps its placeholders through
 # `hr_placeholder_sweep_paths_var`, and exits with `bwrap`'s status, printing
@@ -467,14 +464,12 @@ errfile="$(mktemp "${TMPDIR:-/tmp}/launch-sandboxed-gates.XXXXXX")" ||
   refuse "cannot create a temporary file under '${TMPDIR:-/tmp}'"
 trap 'rm -f "$errfile"' EXIT
 
-# The subshell is the background job and `exec`s `setsid` in place, keeping
-# its PID. `setsid` without `-f`: a background job of a non-interactive shell
-# is no process-group leader, so it execs in place too and `$!` stays the
-# supervisor.
+# `setsid` without `-f`: a background job of a non-interactive shell is no
+# process-group leader, so it execs in place and `$!` stays the supervisor.
 setsid_bin="$(command -v setsid 2>/dev/null)" || setsid_bin=""
 case "$setsid_bin" in
-  /*) ( trap '' HUP; exec "$setsid_bin" bash "$script_dir/launch-sandboxed-gates.sh" --supervise "$target" "$label" ) </dev/null >/dev/null 2>"$errfile" & ;;
-  *) ( trap '' HUP; exec bash "$script_dir/launch-sandboxed-gates.sh" --supervise "$target" "$label" ) </dev/null >/dev/null 2>"$errfile" & ;;
+  /*) nohup "$setsid_bin" bash "$script_dir/launch-sandboxed-gates.sh" --supervise "$target" "$label" </dev/null >/dev/null 2>"$errfile" & ;;
+  *) nohup bash "$script_dir/launch-sandboxed-gates.sh" --supervise "$target" "$label" </dev/null >/dev/null 2>"$errfile" & ;;
 esac
 supervisor_pid=$!
 disown
