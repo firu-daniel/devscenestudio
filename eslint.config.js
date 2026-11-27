@@ -1,6 +1,6 @@
 // Lint config. Which process may import which is enforced by `tsc -b` (project references);
 // these rules cover what lives inside a process and the security choke points.
-// Sources: docs/architecture-research/07-recommendation.md §3.2, 02 §5, 05 §1, 06 §7.
+// Sources: research/architecture-research/07-recommendation.md §3.2, 02 §5, 05 §1, 06 §7.
 // Main's rules arrive with the Day 2 main-process work.
 //
 // Note on flat config: when several blocks set the same rule for a file, the LAST one wins

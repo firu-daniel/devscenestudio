@@ -1,6 +1,6 @@
 # DevScene Studio
 
-Desktop app for [DevScene](https://github.com/firu-daniel/devscene) runs. Early skeleton: the Electron validation spike is tracked in [#4](https://github.com/firu-daniel/devscenestudio/issues/4). The research behind it is in [`docs/product-startup-research/`](docs/product-startup-research/README.md).
+Desktop app for [DevScene](https://github.com/firu-daniel/devscene) runs. Early skeleton: the Electron validation spike is tracked in [#4](https://github.com/firu-daniel/devscenestudio/issues/4). The research behind it is in [`research/product-startup-research/`](research/product-startup-research/README.md).
 
 ## Development
 
@@ -15,7 +15,7 @@ npm test              # Vitest: `node` and `dom` (jsdom) projects
 npm run format        # Prettier check (`npm run format:write` to fix)
 ```
 
-Layout: `src/shared` (pure TypeScript), `src/main`, `src/preload` and `src/renderer` (one folder per Electron process), and `tests/` for cross-layer suites. Each has its own `tsconfig.json`, so an import from one process into another fails the type check. Vite builds the renderer and esbuild bundles main and preload (`scripts/build-main.mjs`). The architecture is in [`docs/architecture-research/07-recommendation.md`](docs/architecture-research/07-recommendation.md).
+Layout: `src/shared` (pure TypeScript), `src/main`, `src/preload` and `src/renderer` (one folder per Electron process), and `tests/` for cross-layer suites. Each has its own `tsconfig.json`, so an import from one process into another fails the type check. Vite builds the renderer and esbuild bundles main and preload (`scripts/build-main.mjs`). The architecture is in [`research/architecture-research/07-recommendation.md`](research/architecture-research/07-recommendation.md).
 
 ## Signed macOS builds
 
@@ -32,7 +32,7 @@ source ~/.config/devscenestudio/signing.env
 npm run dist:mac   # refuses to run when either variable is unset
 ```
 
-Create the keychain profile with `xcrun notarytool store-credentials <profile> --key <AuthKey.p8> --key-id <id> --issuer <issuer>`, using an App Store Connect API key with the Developer role. Checks after a build are in [research 11 §2](docs/product-startup-research/11-day0-signing.md#2-macos-checks-pass-conditions).
+Create the keychain profile with `xcrun notarytool store-credentials <profile> --key <AuthKey.p8> --key-id <id> --issuer <issuer>`, using an App Store Connect API key with the Developer role. Checks after a build are in [research 11 §2](research/product-startup-research/11-day0-signing.md#2-macos-checks-pass-conditions).
 
 ## Licence
 

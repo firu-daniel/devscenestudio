@@ -1,6 +1,6 @@
 // Solution file: builds nothing itself. `tsc -b` checks each project below, and the
 // project references make an import across Electron processes a compile error (TS6307).
-// Layout and flags: docs/architecture-research/06-testing-and-tooling.md §3.
+// Layout and flags: research/architecture-research/06-testing-and-tooling.md §3.
 {
   "files": [],
   "references": [

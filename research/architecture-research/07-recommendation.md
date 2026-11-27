@@ -121,7 +121,8 @@ devscenestudio/
 ├── scripts/                      build-main.mjs, dev.mjs, signing helpers (exist)
 ├── build/                        electron-builder resources, entitlements (exists)
 ├── vm/                           Linux VM tooling (exists)
-├── docs/                         research and design docs
+├── docs/                         maintained feature docs (harness docs phase)
+├── research/                     research records (architecture-research/, product-startup-research/)
 └── .claude/context/              shared.md, main.md, renderer.md, tests.md, conventions.md (with a "Preload" section)
 ```
 
@@ -262,7 +263,7 @@ Honest delta: **Days 1–2 go from 3 to ≈ 5–5.5 O-d (+2 to +2.5).** The spik
 ## 5. Edits to the Issues (applied to Issues #1 and #4 on 2026-11-25)
 
 **Issue #4:**
-- Header: add "Architecture: [`docs/architecture-research/07-recommendation.md`](…) §4".
+- Header: add "Architecture: [`research/architecture-research/07-recommendation.md`](…) §4".
 - Day 1 title: "(≈ 1.5 days)" → "(≈ 2.5 days)". Add, first: "Scaffolding in one change: tsconfig project references + Vite/esbuild build, ESLint/Prettier/Vitest, `engines.node` `^22.22.2 || ^24.15.0` (07 §4.1 steps 1–2)" and "`getStudio()` seam with fixture scenarios selected by `?scenario=` (step 4)".
 - Rendering item: "DOMPurify ≥ 3.4.17" → "**DOMPurify ≥ 3.5.0** (3.4.x line ended; two new advisories)"; "Trusted Types" → "Trusted Types (`studio-html`, module-private `studio-purify`)".
 - XSS item: "0 dialogs, 0 off-origin requests, 0 CSP violations" → "**0 Trusted Types violations, 0 executions/dialogs, 0 off-origin requests, 0 `javascript:` hrefs**, on `vite preview` with the CSP header (`*-src-attr` reports recorded, not failed)".

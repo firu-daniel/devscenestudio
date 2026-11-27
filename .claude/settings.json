@@ -1,0 +1,18 @@
+{
+  "enabledPlugins": {
+    "devscene@devscene": true
+  },
+  "extraKnownMarketplaces": {
+    "devscene": {
+      "source": {
+        "source": "github",
+        "repo": "firu-daniel/devscene"
+      }
+    }
+  },
+  "permissions": {
+    "allow": [
+      "Bash(bash devscene-scripts/task-offer-check.sh)"
+    ]
+  }
+}

@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# Written by `devscene init`, and yours from there on: edit it freely, a re-run
+# keeps your copy. It is what `commands.devServer` invokes: it starts the development server in
+# the background, from the repository root, and prints the pid and the log path a caller needs.
+#
+# Usage: start-dev-server.sh [port] [argument...]
+# The port is optional and must be numeric when it is given; anything else is a usage error, so a
+# mistyped port can never be passed through as a flag. It reaches the command on one channel only,
+# exported as DEVSCENE_DEV_SERVER_PORT: it is shifted off before the remaining arguments are
+# forwarded, so the raw command line below is never handed the port positionally. A server that
+# takes its port only as an argument has to be given that variable on the raw line below.
+#
+# This wrapper may run a build to completion before it launches, on the pre-start line below; that
+# line is yours to edit like every other, and `:` there means there is nothing to run.
+#
+# Nothing here inspects the port. A stack whose server silently falls through to port+1 when the
+# port is taken has to be told not to, and this wrapper is where you tell it: add its strict-port
+# flag to the raw command line below, or make the command that line runs fail on a taken port. A
+# QA run that quietly moved to another port drives a different run's server.
+
+# Deliberately no `-e`, for the same reason as the other wrappers. No captured status either:
+# a development server does not exit while it is doing its job.
+set -uo pipefail
+
+# Exit with a diagnostic and no pid line: nothing is running, so there is nothing to report. A
+# function rather than an inline `echo … && exit 1`, because the command line below is handed the
+# caller's arguments and `exit` refuses extra ones — `init` writes a call to it as that line when
+# no command line resolved.
+harness_fail() {
+  echo "$1" >&2
+  exit 1
+}
+
+port="${1:-}"
+if [ -n "$port" ]; then
+  case "$port" in
+    *[!0-9]*)
+      harness_fail "devServer: usage: start-dev-server.sh [port] (port must be numeric, got '${port}')"
+      ;;
+  esac
+  shift
+  export DEVSCENE_DEV_SERVER_PORT="$port"
+fi
+
+# Anchor to the repository root, derived from this script's own location and never from the
+# caller's directory: `commands.*` are command lines run from the repository root and every path
+# in `devscene.config.json` is repo-relative. The placement below answers with
+# the checkout this copy belongs to, so every form the permission profiles allow-list — the
+# repo-relative one and its absolute twin in the base profile, and a run copy's own exact path in
+# the run watcher's per-run copy — runs at the root of the checkout it was invoked out of,
+# whatever directory the caller stood in.
+# The root is the nearest of the script's own directory and its ancestors that holds
+# `devscene.config.json` and that git confirms as its own top level, so git's discovery never
+# starts at a `<scriptsDir>/.git` placeholder a bubblewrap host mounts (F15); it is the run
+# library's `hr_script_root`, inlined because this wrapper sources no library.
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root=""
+candidate="$(CDPATH= cd -P -- "$script_dir" 2>/dev/null && pwd -P)"
+while [ -n "$candidate" ]; do
+  if [ -f "$candidate/devscene.config.json" ] && [ "$(git -C "$candidate" rev-parse --show-toplevel 2>/dev/null)" = "$candidate" ]; then
+    repo_root="$candidate"
+    break
+  fi
+  [ "$candidate" != / ] || break
+  candidate="${candidate%/*}"
+  [ -n "$candidate" ] || candidate=/
+done
+if [ -z "$repo_root" ]; then
+  repo_root="$(git -C "$script_dir" rev-parse --show-toplevel 2>/dev/null)"
+fi
+if [ -z "$repo_root" ] || ! cd "$repo_root"; then
+  harness_fail "devServer: could not resolve a repository root from '${script_dir}' (is git on PATH?)"
+fi
+
+# A step that has to finish before the server is launched — for a server that serves what was last
+# compiled, the project's own build. Synchronous and above the launch deliberately: the line below
+# is backgrounded and its `$!` is what a caller kills, and a build chained into it with `&&` would
+# make that pid a subshell the kill does not reach past. `:` when there is nothing to run.
+
+# $TMPDIR ends in a trailing slash on macOS; strip it so the path carries no doubled separator.
+# With no port the log is the `-default` one, which is also the only case two runs can share.
+tmp_dir="${TMPDIR:-/tmp}"
+tmp_dir="${tmp_dir%/}"
+log_file="${tmp_dir}/harness-dev-server-${port:-default}.log"
+
+# Backgrounded rather than `exec`ed, which is the one behaviour a QA phase cannot do without: it
+# needs this shell back to poll the port and it needs a pid of its own to stop the server with,
+# and it needs somewhere to read a startup failure from — which is why both streams go to the log.
+port_args=()
+if [ -n "${DEVSCENE_DEV_SERVER_PORT:-}" ]; then
+  port_args=(--port "$DEVSCENE_DEV_SERVER_PORT" --strictPort)
+fi
+npm run dev:browser -- ${port_args[@]+"${port_args[@]}"} "$@" >"$log_file" 2>&1 &
+pid=$!
+
+# The only failure this script reports: the launch itself did not happen. A server that started
+# but is not answering yet is success — see the readiness note below.
+#
+# Liveness is the test, not `[ -z "$pid" ]`: `$!` is assigned the moment the job is backgrounded,
+# before the command has been resolved, so it is set even for a command that does not exist and an
+# emptiness test can never fire. The brief settle is what makes the liveness test mean anything —
+# immediately after the `&` the child has not been reaped yet and `kill -0` succeeds for a command
+# that was never found. It is NOT a readiness wait: readiness belongs to the poll named at the foot
+# of this script, and this only has to outlast a command that dies on the spot. Lengthen it if your
+# command forks through a launcher slow enough to be missed here.
+sleep 0.3
+if ! kill -0 "$pid" 2>/dev/null; then
+  harness_fail "devServer: the development server exited immediately — see $log_file"
+fi
+
+# The one wrapper with no PASS/FAIL verdict, because a long-running process has no verdict to
+# give. It reports what a caller has to hold instead: the pid to check liveness and to stop, and
+# the log to read a failed start out of.
+echo "STARTING: devServer (pid $pid)"
+echo "LOG: $log_file"
+
+# Readiness is deliberately not probed here. The poll already ships as a plugin asset —
+# `scripts/poll-dev-server.sh`, which the QA phase runs against the port once this returns — and a
+# second implementation of it inside a wrapper an adopter edits is how the two come to disagree.
+exit 0
