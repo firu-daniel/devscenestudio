@@ -337,7 +337,7 @@ Effort on top of the spike plan: ≈ 0.5–1 O-d for the lint block, four brands
 ## Sources
 
 1. https://www.electronjs.org/docs/latest/tutorial/security — 20-item checklist; #5 permissions, #7 CSP header "preferred", #17 `validateSender` on `frame.origin` with `null` handling, #20 don't pass the IPC event to callbacks. Checked at tag `v45.5.0` via `gh api repos/electron/electron/contents/docs/tutorial/security.md?ref=v45.5.0` — accessed 2026-11-25 [verified]
-2. `docs/product-startup-research/08-security.md` §1.3, §2a, §3.1–§3.13, §4.3, §6.2; `10-recommendation.md` §1.5, §5, §6 — local [verified]
+2. `research/product-startup-research/08-security.md` §1.3, §2a, §3.1–§3.13, §4.3, §6.2; `10-recommendation.md` §1.5, §5, §6 — local [verified]
 3. `gh api repos/cure53/DOMPurify/releases/latest` — 3.5.0, 2026-11-22, "There will be no further 3.4.x release"; `npm view dompurify` — accessed 2026-11-25 [verified]
 4. `gh api repos/cure53/DOMPurify/security-advisories` — GHSA-qm7q-q8h9-jg8q (2026-11-14, medium, `SAFE_FOR_TEMPLATES`, fixed 3.4.18), GHSA-hrxw-jjj6-2g2j (2026-11-23, low, fixed 3.5.0) — accessed 2026-11-25 [verified]
 5. DOMPurify 3.5.0 `README.md` "What about DOMPurify and Trusted Types?" (`TRUSTED_TYPES_POLICY: null` inside your own policy) and `dist/purify.es.mjs:1037-1060, 1441-1456` (internal `dompurify` policy, `TRUSTED_TYPES_POLICY` option), `:1166-1169` (default policy created lazily on first use), `:1864-1871` (raw string to `DOMParser.parseFromString`, `innerHTML` fallback when no policy) — from `npm pack dompurify@3.5.0`, accessed 2026-11-25 [verified]
